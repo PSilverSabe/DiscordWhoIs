@@ -1,0 +1,9 @@
+services:
+  discordwhois:
+    container_name: discordwhois
+    image: ${DOCKER_REGISTRY-}discordwhois
+    build:
+      context: .
+      dockerfile: DiscordWhoIs/Dockerfile
+    env_file:
+      - .env
