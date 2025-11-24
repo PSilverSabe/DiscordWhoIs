@@ -11,76 +11,81 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
-        using IHost host = Host.CreateDefaultBuilder(args)
+        var builder = Host.CreateDefaultBuilder(args)
+
+            // Minimal web server for Render
+            .ConfigureWebHostDefaults(webBuilder =>
+            {
+                // Bind to Render's dynamic PORT
+                var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+                webBuilder.UseUrls($"http://0.0.0.0:{port}");
+
+                webBuilder.Configure(app =>
+                {
+                    // Used because we don't have WebApplicationBuilder here
+                    app.UseRouting();
+
+                    app.UseEndpoints(endpoints =>
+                    {
+                        endpoints.MapGet("/", async ctx =>
+                        {
+                            await ctx.Response.WriteAsync("DiscordWhoIs bot is running");
+                        });
+                    });
+                });
+            })
+
             .ConfigureAppConfiguration((context, config) =>
             {
                 config.AddEnvironmentVariables();
-                config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
-                if (context.HostingEnvironment.IsDevelopment())
-                {
-                    config.AddUserSecrets<Program>();
-                }
-                else
-                {
-                    var fandomTarget = Environment.GetEnvironmentVariable("Fandom_TargetFandom");
-                    var discordToken = Environment.GetEnvironmentVariable("Discord_Token");
-                    var discordGuildId = Environment.GetEnvironmentVariable("Discord_GuildId");
-                    var discordAllowRoleIds = Environment.GetEnvironmentVariable("Discord_AllowRoleId");
+                config.AddJsonFile("appsettings.json", optional: false);
+                config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
 
+                if (!context.HostingEnvironment.IsDevelopment())
+                {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        { "Fandom:TargetFandom", fandomTarget },
-                        { "Discord:Token", discordToken },
-                        { "Discord:GuildId", discordGuildId },
-                        { "Discord:AllowRoleIds", discordAllowRoleIds }
+                        { "Fandom:TargetFandom", Environment.GetEnvironmentVariable("Fandom_TargetFandom") },
+                        { "Discord:Token", Environment.GetEnvironmentVariable("Discord_Token") },
+                        { "Discord:GuildId", Environment.GetEnvironmentVariable("Discord_GuildId") },
+                        { "Discord:AllowRoleIds", Environment.GetEnvironmentVariable("Discord_AllowRoleIds") }
                     });
                 }
-
-                if (args != null)
-                {
-                    config.AddCommandLine(args);
-                }
             })
+
             .ConfigureServices((context, services) =>
             {
-                services.AddLogging(builder => builder.AddConsole());
+                services.AddLogging(b => b.AddConsole());
 
                 services.AddMemoryCache();
 
-                // Register Ao3 typed HttpClient
                 services.AddHttpClient<Ao3FicFeedService>();
 
-                services.AddSingleton(sp => new DiscordSocketClient(new DiscordSocketConfig
+                services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
                 {
                     GatewayIntents = GatewayIntents.AllUnprivileged
                 }));
 
-                // Persistent SQLite cache (same instance used as IHostedService)
                 services.AddSingleton<SqlitePersistentCache>();
                 services.AddSingleton<IPersistentCache>(sp => sp.GetRequiredService<SqlitePersistentCache>());
                 services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SqlitePersistentCache>());
 
-                // Alias store (separate SQLite file)
                 services.AddSingleton<SqliteAliasStore>();
                 services.AddSingleton<IAliasStore>(sp => sp.GetRequiredService<SqliteAliasStore>());
 
-                // Register slash command implementations
                 services.AddSingleton<ISlashCommand, WhoIsCommand>();
-                services.AddSingleton<ISlashCommand, AliasCommand>(); // single command with subcommands
-
-                // Handler that depends on all registered ISlashCommand implementations
+                services.AddSingleton<ISlashCommand, AliasCommand>();
                 services.AddSingleton<SlashCommandHandler>();
 
-                // Ao3 service (typed client will be created by IHttpClientFactory)
-                services.AddSingleton<Ao3FicFeedService>();
-
-                // Bot service
                 services.AddSingleton<BotService>();
-            })
-            .Build();
+            });
 
+        var host = builder.Build();
+
+        // Start the Discord bot
         await host.Services.GetRequiredService<BotService>().StartAsync();
+
+        // Start ASP.NET listener for Render health checks
         await host.RunAsync();
     }
 }

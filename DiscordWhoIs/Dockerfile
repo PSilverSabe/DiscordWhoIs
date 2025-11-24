@@ -4,17 +4,18 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
 WORKDIR /src
 
-# Install dependencies for NativeAOT/self-contained publish
-RUN apk add --no-cache clang zlib-dev musl-dev icu-libs libgcc libstdc++ bash
+# Dependencies for NativeAOT trimming + musl publish
+RUN apk add --no-cache clang zlib-dev musl-dev icu-dev libgcc libstdc++ bash
 
-# Copy project file only and restore dependencies
+# Copy csproj first (layer caching)
 COPY ["DiscordWhoIs/DiscordWhoIs.csproj", "DiscordWhoIs/"]
 RUN dotnet restore "DiscordWhoIs/DiscordWhoIs.csproj"
 
-# Copy source files and publish single-file, self-contained, trimmed binary
+# Copy source
 COPY ["DiscordWhoIs/", "DiscordWhoIs/"]
 WORKDIR "/src/DiscordWhoIs"
 
+# Publish NativeAOT trimmed binary
 RUN dotnet publish DiscordWhoIs.csproj \
     -c Release \
     -o /app/publish \
@@ -25,7 +26,6 @@ RUN dotnet publish DiscordWhoIs.csproj \
     /p:TrimMode=Link \
     /p:StripSymbols=true \
     /p:DebuggerSupport=false && \
-    # Clean up build caches to reduce image size
     rm -rf /root/.nuget /src/DiscordWhoIs/bin /src/DiscordWhoIs/obj
 
 # ======================
@@ -34,13 +34,19 @@ RUN dotnet publish DiscordWhoIs.csproj \
 FROM alpine:3.21 AS final
 WORKDIR /app
 
-# Minimal runtime dependencies
+# Runtime deps for trimmed .NET binary
 RUN apk add --no-cache icu-libs libgcc libstdc++ zlib
 
-# Copy only the published single-file binary
+# Copy self-contained binary
 COPY --from=build /app/publish/ .
 
-# Make binary executable
+# Make executable
 RUN chmod +x DiscordWhoIs
+
+# Bind ASP.NET to Render's PORT
+ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
+
+# Required by Render Web Services
+EXPOSE 10000
 
 ENTRYPOINT ["./DiscordWhoIs"]
