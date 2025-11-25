@@ -8,11 +8,18 @@ namespace DiscordWhoIs.Commands
     {
         private readonly Ao3FicFeedService _ao3;
         private readonly ILogger<WhoIsCommandModule> _logger;
+        private readonly TimeSpan _cacheLength;
 
-        public WhoIsCommandModule(Ao3FicFeedService ao3, ILogger<WhoIsCommandModule> logger)
+        public WhoIsCommandModule(
+            Ao3FicFeedService ao3, 
+            ILogger<WhoIsCommandModule> logger, 
+            IConfiguration configuration)
         {
             _ao3 = ao3;
             _logger = logger;
+
+            if (int.TryParse(configuration?["Cache:ExpirationInHours"], out var cl) && cl > 0) _cacheLength = TimeSpan.FromHours(cl);
+            else _cacheLength = TimeSpan.FromHours(12);
         }
 
         [SlashCommand("whoisauthor", "Fetch fics for an AO3 user.")]
@@ -48,7 +55,7 @@ namespace DiscordWhoIs.Commands
 
             var embed = new EmbedBuilder()
                 .WithTitle($"Recent works for {displayName}")
-                .WithDescription($"Showing up to 10 works. Cached for 24 hours." +
+                .WithDescription($"Showing up to 10 works. Cached for {_cacheLength.TotalHours} hours." +
                                  (string.IsNullOrWhiteSpace(description) ? "" : $"\n\n{description}"))
                 .WithFooter($"Source: Archive of Our Own")
                 .WithColor(Color.DarkBlue);

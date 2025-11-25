@@ -18,6 +18,7 @@
         private readonly ILogger<Ao3FicFeedService> _logger;
         private readonly IAliasStore _aliasStore;
         private readonly long? _targetFandomId;
+        private readonly TimeSpan _cacheLength;
 
         public Ao3FicFeedService(
             HttpClient http,
@@ -41,6 +42,9 @@
 
             _targetFandomId = retVal;
             _http.DefaultRequestHeaders.UserAgent.ParseAdd("Ao3FicFeedBot/1.0 (+https://example.com)");
+
+            if (int.TryParse(configuration?["Cache:ExpirationInHours"], out var cl) && cl > 0) _cacheLength = TimeSpan.FromHours(cl);
+            else _cacheLength = TimeSpan.FromHours(12);
         }
 
         private static readonly Regex PageCountRegex = new(@"page=([0-9]+)", RegexOptions.Compiled);
@@ -102,7 +106,7 @@
                 {
                     _logger.LogInformation("Persistent cache hit for alias {Alias} (mapped to {Resolved})", user, resolvedUser);
                     // Re-save under resolved key for consistency
-                    _cache.Set(cacheKeyResolved, aliasCached!, TimeSpan.FromHours(24));
+                    _cache.Set(cacheKeyResolved, aliasCached!, _cacheLength);
                     return aliasCached!;
                 }
             }
@@ -111,7 +115,7 @@
             var results = await ScrapeAllPagesAsync(resolvedUser);
 
             // Persist for 24 hours by default
-            _cache.Set(cacheKeyResolved, results, TimeSpan.FromHours(24));
+            _cache.Set(cacheKeyResolved, results, _cacheLength);
 
             return results;
         }

@@ -31,7 +31,8 @@ public class Program
                         { "Discord:DevMode", Environment.GetEnvironmentVariable("Discord_DevMode") },
                         { "Discord:DevGuildId", Environment.GetEnvironmentVariable("Discord_DevGuildId") },
                         { "Alias:Path", Environment.GetEnvironmentVariable("Alias_Path") },
-                        { "Cache:Path", Environment.GetEnvironmentVariable("Cache_Path") }
+                        { "Cache:Path", Environment.GetEnvironmentVariable("Cache_Path") },
+                        { "Cache:ExpirationInHours", Environment.GetEnvironmentVariable("Cache_Experiation_In_Hours") }
                     });
                 }
             })
