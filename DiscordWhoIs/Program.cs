@@ -29,7 +29,9 @@ public class Program
                         { "Discord:Token", Environment.GetEnvironmentVariable("Discord_Token") },
                         { "Discord:AllowRoleIds", Environment.GetEnvironmentVariable("Discord_AllowRoleIds") },
                         { "Discord:DevMode", Environment.GetEnvironmentVariable("Discord_DevMode") },
-                        { "Discord:DevGuildId", Environment.GetEnvironmentVariable("Discord_DevGuildId") }
+                        { "Discord:DevGuildId", Environment.GetEnvironmentVariable("Discord_DevGuildId") },
+                        { "Alias:Path", Environment.GetEnvironmentVariable("Alias_Path") },
+                        { "Cache:Path", Environment.GetEnvironmentVariable("Cache_Path") }
                     });
                 }
             })

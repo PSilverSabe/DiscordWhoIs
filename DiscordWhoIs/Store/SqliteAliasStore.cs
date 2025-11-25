@@ -22,7 +22,7 @@
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            var configured = configuration?["Aliases:Path"]?.Trim();
+            var configured = configuration?["Alias:Path"]?.Trim();
             _dbPath = string.IsNullOrWhiteSpace(configured)
                 ? Path.Combine(AppContext.BaseDirectory, "aliases.sqlite")
                 : Path.IsPathRooted(configured) ? configured : Path.Combine(AppContext.BaseDirectory, configured);
