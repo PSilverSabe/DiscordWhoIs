@@ -1,0 +1,20 @@
+﻿<linker>
+	<assembly fullname="DiscordWhoIs">
+		<!-- Preserve all slash command modules -->
+		<type fullname="DiscordWhoIs.Commands.WhoIsCommandModule" preserve="all"/>
+		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all"/>
+		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all"/>
+
+		<!-- Preserve other InteractionModuleBase types if you add more -->
+		<!--
+    <type fullname="DiscordWhoIs.Commands.Modules.OtherCommandModule" preserve="all"/>
+    -->
+	</assembly>
+
+	<!-- Preserve Discord.Net assemblies used by reflection -->
+	<assembly fullname="Discord.Net.Interactions" preserve="all"/>
+	<assembly fullname="Discord.Net.Core" preserve="all"/>
+	<assembly fullname="Discord.Net.Rest" preserve="all"/>
+	<assembly fullname="Discord.Net.WebSocket" preserve="all"/>
+	<assembly fullname="Newtonsoft.Json" preserve="all"/>
+</linker>

@@ -7,7 +7,6 @@
 		<UserSecretsId>84a934e4-dc2e-441b-9473-13d42b2459d3</UserSecretsId>
 
 		<!-- NativeAOT / Self-contained single-file -->
-		<RuntimeIdentifier>linux-x64</RuntimeIdentifier>
 		<PublishAot>false</PublishAot>
 		<PublishSingleFile>true</PublishSingleFile>
 		<SelfContained>true</SelfContained>
@@ -28,10 +27,12 @@
 
 	<!-- Preserve Discord.NET and Newtonsoft.Json types for reflection -->
 	<ItemGroup>
-		<TrimmerRootAssembly Include="Discord.Net.Core" />
-		<TrimmerRootAssembly Include="Discord.Net.Rest" />
-		<TrimmerRootAssembly Include="Discord.Net.WebSocket" />
-		<TrimmerRootAssembly Include="Newtonsoft.Json" />
+		<TrimmerRootDescriptor Include="Linker.xml" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Update="Linker.xml">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 </Project>

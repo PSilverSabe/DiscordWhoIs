@@ -1,10 +1,10 @@
-# ======================
+﻿# ======================
 # BUILD STAGE (Alpine SDK)
 # ======================
 FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
 WORKDIR /src
 
-# Dependencies for NativeAOT trimming + musl publish
+# Dependencies for building
 RUN apk add --no-cache clang zlib-dev musl-dev icu-dev libgcc libstdc++ bash
 
 # Copy csproj first (layer caching)
@@ -15,32 +15,31 @@ RUN dotnet restore "DiscordWhoIs/DiscordWhoIs.csproj"
 COPY ["DiscordWhoIs/", "DiscordWhoIs/"]
 WORKDIR "/src/DiscordWhoIs"
 
-# Publish NativeAOT trimmed binary
+# Publish DEBUG build (no trimming, no NativeAOT)
 RUN dotnet publish DiscordWhoIs.csproj \
-    -c Release \
+    -c Debug \
     -o /app/publish \
     -r linux-musl-x64 \
-    /p:PublishSingleFile=true \
-    /p:SelfContained=true \
-    /p:PublishTrimmed=true \
-    /p:TrimMode=Link \
-    /p:StripSymbols=true \
-    /p:DebuggerSupport=false && \
-    rm -rf /root/.nuget /src/DiscordWhoIs/bin /src/DiscordWhoIs/obj
+    /p:PublishSingleFile=false \
+    /p:SelfContained=false \
+    /p:PublishTrimmed=false \
+    /p:DebugType=portable \
+    /p:DebugSymbols=true
 
 # ======================
-# FINAL RUNTIME IMAGE (Alpine)
+# FINAL RUNTIME IMAGE (Alpine SDK for Debug)
 # ======================
-FROM alpine:3.21 AS final
+FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS debug
 WORKDIR /app
 
-# Runtime deps for trimmed .NET binary
-RUN apk add --no-cache icu-libs libgcc libstdc++ zlib
-
-# Copy self-contained binary
+# Copy published files from build
 COPY --from=build /app/publish/ .
 
-# Make executable
+# Add bash for interactive debugging
+RUN apk add --no-cache bash icu-libs libgcc libstdc++ zlib
+
+# Make entrypoint executable
 RUN chmod +x DiscordWhoIs
 
-ENTRYPOINT ["./DiscordWhoIs"]
+# Start in bash for interactive debugging, default fallback to app
+ENTRYPOINT ["/bin/bash", "-c", "./DiscordWhoIs"]
