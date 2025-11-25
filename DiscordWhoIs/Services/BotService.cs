@@ -1,8 +1,8 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Commands;
 using DiscordWhoIs.Registry;
+using System;
 using System.Reflection;
 
 namespace DiscordWhoIs.Services
@@ -28,12 +28,13 @@ namespace DiscordWhoIs.Services
             _interactions = interactions;
             _registry = registry;
             _config = config;
-            _logger = logger;
             _services = services;
+            _logger = logger;
 
             _client.Log += LogAsync;
             _client.Ready += OnReadyAsync;
             _client.InteractionCreated += HandleInteractionAsync;
+            _client.JoinedGuild += OnJoinedGuildAsync; // auto-register commands for new guilds
         }
 
         public async Task StartAsync()
@@ -47,23 +48,20 @@ namespace DiscordWhoIs.Services
         }
 
         /// <summary>
-        /// Automatically called when the bot is ready.
-        /// Loads all modules, then registers commands globally or to dev guild.
+        /// Called on bot ready: loads modules and registers commands globally or to dev guild.
         /// </summary>
         private async Task OnReadyAsync()
         {
             _logger.LogInformation("Connected as {User}", _client.CurrentUser.Username);
 
-            // Dynamic module loading, does not work with Trimming or AOT
+            // Load all modules
             await _interactions.AddModulesAsync(Assembly.GetExecutingAssembly(), _services);
-
-            // Manual module loading to support Trimming and AOT
-            // await _interactions.AddModuleAsync<WhoIsCommandModule>(_services);
-            // await _interactions.AddModuleAsync<AliasCommandModule>(_services);
-
             _logger.LogInformation("Discovered {Count} slash command modules.", _interactions.SlashCommands.Count);
 
-            // Determine if we are in dev mode (guild-only) or global mode
+            // Clean duplicates globally and per guild
+            await CleanupDuplicatesAsync();
+
+            // Register global or dev guild commands
             bool devMode = _config.GetValue<bool>("Discord:DevMode");
             ulong devGuildId = _config.GetValue<ulong>("Discord:DevGuildId");
 
@@ -81,15 +79,117 @@ namespace DiscordWhoIs.Services
             _logger.LogInformation("Bot is fully ready.");
         }
 
+
+
         /// <summary>
-        /// Handles all incoming interactions via InteractionService.
+        /// Handles a new guild join by registering commands immediately.
+        /// </summary>
+        private async Task OnJoinedGuildAsync(SocketGuild guild)
+        {
+            try
+            {
+                _logger.LogInformation("Joined new guild: {GuildName} ({GuildId})", guild.Name, guild.Id);
+
+                // Fetch existing global commands
+                var globalCommands = await _client.Rest.GetGlobalApplicationCommands();
+
+                // Determine which local commands are missing globally
+                var missingCommands = _interactions.SlashCommands
+                    .Where(local => !globalCommands.Any(g => g.Name.Equals(local.Name, StringComparison.OrdinalIgnoreCase)))
+                    .ToArray();
+
+                // Register missing commands to guild if needed
+                if (missingCommands.Length > 0)
+                {
+                    _logger.LogInformation("Adding {Count} commands to guild {GuildId} that are missing globally.", missingCommands.Length, guild.Id);
+                    await _interactions.AddCommandsToGuildAsync(guild.Id, deleteMissing: false, commands: missingCommands);
+                }
+                else
+                {
+                    _logger.LogInformation("All commands already exist globally. No need to register locally for guild {GuildId}", guild.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to handle commands for new guild {GuildName} ({GuildId})", guild.Name, guild.Id);
+            }
+        }
+
+        /// <summary>
+        /// Removes duplicate commands from global scope and all guilds.
+        /// Keeps only the first instance of each command by name.
+        /// </summary>
+        public async Task CleanupDuplicatesAsync()
+        {
+            try
+            {
+                // -----------------------
+                // Clean global commands
+                // -----------------------
+                var globalCommands = await _client.Rest.GetGlobalApplicationCommands();
+
+                var duplicateGlobals = globalCommands
+                    .GroupBy(c => c.Name.ToLowerInvariant())
+                    .Where(g => g.Count() > 1)
+                    .SelectMany(g => g.Skip(1))
+                    .ToList();
+
+                foreach (var dup in duplicateGlobals)
+                {
+                    await dup.DeleteAsync();
+                    _logger.LogInformation("Deleted duplicate global command '{Command}'", dup.Name);
+                }
+
+                if (!duplicateGlobals.Any())
+                    _logger.LogInformation("No duplicate global commands found.");
+
+                // -----------------------
+                // Clean guild commands
+                // -----------------------
+                foreach (var guild in _client.Guilds)
+                {
+                    try
+                    {
+                        var guildCommands = await _client.Rest.GetGuildApplicationCommands(guild.Id);
+
+                        var duplicateGuilds = guildCommands
+                            .GroupBy(c => c.Name.ToLowerInvariant())
+                            .Where(g => g.Count() > 1)
+                            .SelectMany(g => g.Skip(1))
+                            .ToList();
+
+                        foreach (var dup in duplicateGuilds)
+                        {
+                            await dup.DeleteAsync();
+                            _logger.LogInformation("Deleted duplicate command '{Command}' in guild {GuildId}", dup.Name, guild.Id);
+                        }
+
+                        if (!duplicateGuilds.Any())
+                            _logger.LogInformation("No duplicate commands found in guild {GuildId}", guild.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to clean duplicates in guild {GuildName} ({GuildId})", guild.Name, guild.Id);
+                    }
+                }
+
+                _logger.LogInformation("Duplicate command cleanup complete.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to clean duplicate global commands.");
+            }
+        }
+
+        /// <summary>
+        /// Executes interactions through InteractionService.
         /// </summary>
         private async Task HandleInteractionAsync(SocketInteraction interaction)
         {
             try
             {
                 var ctx = new SocketInteractionContext(_client, interaction);
-                await _interactions.ExecuteCommandAsync(ctx, null);
+                await _interactions.ExecuteCommandAsync(ctx, _services);
             }
             catch (Exception ex)
             {
@@ -100,7 +200,7 @@ namespace DiscordWhoIs.Services
         }
 
         /// <summary>
-        /// Logs Discord client messages to console/logs
+        /// Logs Discord client messages to console/logs.
         /// </summary>
         private Task LogAsync(LogMessage msg)
         {
