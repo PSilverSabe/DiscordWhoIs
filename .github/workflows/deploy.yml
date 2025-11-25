@@ -24,43 +24,22 @@ jobs:
           echo "Changes detected:"
           echo "$CHANGED"
 
-      # Setup Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Build Docker image and export as TAR
-      - name: Build Docker image
-        run: |
-          docker buildx build \
-            --output type=docker,dest=./image.tar \
-            -t discordwhois:latest .
-
-      # Pre-deployment health check
-      - name: Pre-deployment health check
-        run: |
-          docker run -d --name healthcheck_test -p 8080:8080 discordwhois:latest
-          sleep 5
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health || echo 000)
-          docker rm -f healthcheck_test
-          if [ "$STATUS" != "200" ]; then
-            echo "Health check FAILED with code $STATUS"
-            exit 1
-
-      # Install SSH key for deployment
+      # Install SSH key
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      # Upload image to VPS
-      - name: Upload Docker image
+      # Upload code to VPS
+      - name: Upload project to VPS
         run: |
-          scp -o StrictHostKeyChecking=no image.tar \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/image.tar
+          rsync -avz --delete \
+            --exclude '.git/' \
+            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/
 
-      # Trigger deployment via swap.sh
-      - name: Deploy with swap.sh
+      # Build and deploy via Docker Compose
+      - name: Deploy with Docker Compose
         run: |
           ssh -o StrictHostKeyChecking=no \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "cd /home/${{ secrets.VPS_USER }}/discordwhois && ./swap.sh"
+            "cd /home/${{ secrets.VPS_USER }}/discordwhois && docker compose up -d --build"
