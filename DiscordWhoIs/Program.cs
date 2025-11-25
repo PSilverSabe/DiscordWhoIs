@@ -23,7 +23,6 @@ public class Program
 
                 if (!context.HostingEnvironment.IsDevelopment())
                 {
-                    // Apply environment variables for production
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         { "Fandom:TargetFandom", Environment.GetEnvironmentVariable("Fandom_TargetFandom") },
