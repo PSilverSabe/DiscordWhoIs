@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repo
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Deploy only if app files changed
+      # Deploy only if relevant files changed
       - name: Check for relevant changes
         run: |
           CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "src/|Dockerfile|docker-compose.yml" || true)
@@ -24,22 +24,28 @@ jobs:
           echo "Changes detected:"
           echo "$CHANGED"
 
-      # Install SSH key
+      # Setup SSH key
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      # Upload code to VPS
+      # Add VPS host key to known_hosts
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      # Upload project files to VPS
       - name: Upload project to VPS
         run: |
           rsync -avz --delete \
             --exclude '.git/' \
             ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/
 
-      # Build and deploy via Docker Compose
-      - name: Deploy with Docker Compose
+      # Build and deploy using Docker Compose
+      - name: Build and deploy on VPS
         run: |
-          ssh -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=yes \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "cd /home/${{ secrets.VPS_USER }}/discordwhois && docker compose up -d --build"
+            "cd /home/${{ secrets.VPS_USER }}/discordwhois && docker compose up -d --build && ./swap.sh"
