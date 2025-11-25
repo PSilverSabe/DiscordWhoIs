@@ -23,7 +23,6 @@ public class Program
 
                 if (!context.HostingEnvironment.IsDevelopment())
                 {
-                    // Override with environment variables in production
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         { "Fandom:TargetFandom", Environment.GetEnvironmentVariable("Fandom_TargetFandom") },
