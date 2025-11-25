@@ -2,7 +2,7 @@ name: Deploy discordwhois
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
@@ -13,39 +13,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Deploy only if relevant files changed
-      - name: Check for relevant changes
-        run: |
-          CHANGED=$(git diff --name-only HEAD^ HEAD | grep -E "src/|Dockerfile|docker-compose.yml" || true)
-          if [ -z "$CHANGED" ]; then
-            echo "No relevant changes detected. Skipping deployment."
-            exit 0
-          fi
-          echo "Changes detected:"
-          echo "$CHANGED"
-
-      # Setup SSH key (use your existing private key in GitHub Secrets)
+      # Setup SSH private key (must match authorized_keys on VPS)
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      # Add VPS host key to known_hosts
+      # Add VPS host to known_hosts (prevents prompt)
       - name: Add VPS to known_hosts
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
-      # Upload project files to VPS
-      - name: Upload project to VPS
-        run: |
-          rsync -avz --delete \
-            --exclude '.git/' \
-            ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/
+      # Build Docker image on GitHub Actions
+      - name: Build Docker image
+        run: docker build -t discordwhois:latest -f DiscordWhoIs/Dockerfile .
 
-      # Build and deploy using Docker Compose + swap.sh
-      - name: Build and deploy on VPS
+      # Save Docker image as a tarball
+      - name: Save Docker image to tar
+        run: docker save discordwhois:latest -o discordwhois.tar
+
+      # Upload built Docker image tarball
+      - name: Upload Docker image to VPS
         run: |
-          ssh -o StrictHostKeyChecking=yes \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "cd /home/${{ secrets.VPS_USER }}/discordwhois && docker compose up -d --build && ./swap.sh"
+          scp discordwhois.tar \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/
+
+      # Load image and run deployment script
+      - name: Deploy on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            cd ~/discordwhois && \
+            docker load -i discordwhois.tar && \
+            ./swap.sh
+          "
