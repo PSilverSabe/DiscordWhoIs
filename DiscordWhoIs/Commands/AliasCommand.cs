@@ -21,8 +21,7 @@ namespace DiscordWhoIs.Commands
         [SlashCommand("add", "Add or update an alias")]
         public async Task AddAsync(
             [Summary("alias", "Alias name")] string alias,
-            [Summary("user", "AO3 account name")] string user,
-            [Summary("description", "Optional description")] string description = null)
+            [Summary("user", "AO3 account name")] string user)
         {
             if (!(Context.User is SocketGuildUser guildUser))
             {
@@ -44,23 +43,6 @@ namespace DiscordWhoIs.Commands
             {
                 await RespondAsync("Both `alias` and `user` are required.", ephemeral: true);
                 return;
-            }
-
-            try
-            {
-                _store.AddOrUpdate(alias, user, description);
-                _logger.LogInformation("Alias added/updated by {Actor}: {Alias} -> {User} (desc: {Desc})",
-                    guildUser.Username, alias, user, description ?? "<none>");
-
-                await RespondAsync(
-                    $"Added/updated alias `{alias}` -> `{user}`" +
-                    (string.IsNullOrWhiteSpace(description) ? "" : $" with description: `{description}`"),
-                    ephemeral: true);
-            }
-            catch (System.Exception ex)
-            {
-                _logger.LogError(ex, "Failed to add/update alias {Alias}", alias);
-                await RespondAsync("Failed to add alias due to an internal error.", ephemeral: true);
             }
         }
 
