@@ -24,7 +24,7 @@ jobs:
           echo "Changes detected:"
           echo "$CHANGED"
 
-      # Setup SSH key
+      # Setup SSH key (use your existing private key in GitHub Secrets)
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -43,7 +43,7 @@ jobs:
             --exclude '.git/' \
             ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/
 
-      # Build and deploy using Docker Compose
+      # Build and deploy using Docker Compose + swap.sh
       - name: Build and deploy on VPS
         run: |
           ssh -o StrictHostKeyChecking=yes \
