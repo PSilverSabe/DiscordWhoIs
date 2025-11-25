@@ -40,10 +40,15 @@ jobs:
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/discordwhois/
 
       # Load image and run deployment script
-      - name: Deploy on VPS
+      - name: Load image and run swap.sh
         run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
-            cd ~/discordwhois && \
-            docker load -i discordwhois.tar && \
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+            cd ~/discordwhois
+            # Load docker image
+            docker load -i discordwhois.tar
+
+            # Run swap.sh inside variables/
+            cd ~/discordwhois.variables
+            chmod +x swap.sh
             ./swap.sh
           "
