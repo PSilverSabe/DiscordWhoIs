@@ -42,7 +42,22 @@ public class Program
                 services.AddLogging(b => b.AddConsole());
                 services.AddMemoryCache();
 
-                services.AddHttpClient<Ao3FicFeedService>();
+                // ---------------------------------------------------------
+                // Persistent HTTP client (fixes Docker Linux hanging issue)
+                // ---------------------------------------------------------
+                services.AddHttpClient<Ao3FicFeedService>(client =>
+                {
+                    client.Timeout = TimeSpan.FromSeconds(10); // prevent infinite hang
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0");
+                })
+                .ConfigurePrimaryHttpMessageHandler(() =>
+                {
+                    return new SocketsHttpHandler
+                    {
+                        PooledConnectionLifetime = TimeSpan.FromMinutes(5), // fix DNS issues in Docker
+                        AutomaticDecompression = System.Net.DecompressionMethods.All
+                    };
+                });
 
                 // Discord Client
                 services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
