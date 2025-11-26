@@ -1,5 +1,5 @@
 ﻿using Discord.Interactions;
-using DiscordWhoIs.Interfaces;
+using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Services;
 
 namespace DiscordWhoIs.Commands

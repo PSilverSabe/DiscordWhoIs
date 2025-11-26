@@ -1,6 +1,6 @@
 ﻿using Discord;
 using Discord.Interactions;
-using DiscordWhoIs.Interfaces;
+using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Services;
 
 namespace DiscordWhoIs.Commands
@@ -38,43 +38,74 @@ namespace DiscordWhoIs.Commands
                 return;
             }
 
-            // Step 1: Inform user that processing is starting
             await DeferAsync(ephemeral: true);
-            await FollowupAsync($"Resolving alias and checking cache for **{requested}**...");
 
-            // Step 2: Resolve alias
+            var statusLines = new List<string> { $"Resolving alias and checking cache for **{requested}**..." };
+            await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
+
+            // Resolve alias
             var (resolved, description) = _ao3.ResolveAo3UsernameWithDescription(requested);
-
-            // Step 3: Inform user about resolved username
             if (!resolved.Equals(requested, StringComparison.OrdinalIgnoreCase))
             {
-                await FollowupAsync($"Alias **{requested}** resolved to **{resolved}**.");
+                statusLines.Add($"Alias **{requested}** resolved to **{resolved}**.");
+                await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
             }
 
-            // Step 4: Inform user about cache retrieval
+            await Task.Delay(1000);
+
             var cacheKeyResolved = $"ao3_{resolved}";
+            string actionLine;
             if (_cache.TryGetValue<IEnumerable<(string, string)>>(cacheKeyResolved, out _))
             {
-                await FollowupAsync($"Cache hit for **{resolved}**, retrieving cached fics...");
+                actionLine = $"Cache hit for **{resolved}**, retrieving fics";
             }
             else
             {
-                await FollowupAsync($"No cached fics for **{resolved}**, scraping AO3 (this may take some time)...");
+                actionLine = $"No cached fics for **{resolved}**, scraping AO3";
             }
 
-            // Step 5: Fetch fics (with AO3 policy enforced)
+            statusLines.Add(actionLine);
+            await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
+
+            await Task.Delay(1000);
+
+            // Animate the last line with dots
+            bool ficsFetched = false;
+            var loadingLineIndex = statusLines.Count - 1;
+            var dots = new[] { "", ".", "..", "..." };
+            var loadingTask = Task.Run(async () =>
+            {
+                int i = 0;
+                while (!ficsFetched)
+                {
+                    statusLines[loadingLineIndex] = actionLine + dots[i % dots.Length];
+                    await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
+                    i++;
+                    await Task.Delay(700);
+                }
+            });
+
+            // Fetch fics
             var fics = (await _ao3.GetUserFicsAsync(resolved)).ToList();
+            ficsFetched = true;
+            await loadingTask; // ensure animation stops cleanly
 
             if (!fics.Any())
             {
-                await FollowupAsync(
-                    $"No fics found for **{resolved}**" +
-                    (resolved.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"),
-                    ephemeral: true);
+                statusLines.Add($"No fics found for **{resolved}**" +
+                                (resolved.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
+                await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
                 return;
             }
 
-            // Step 6: Prepare embed for the user
+            // Final status line
+            statusLines.Add($"Fetched {fics.Count} fics for **{resolved}**.");
+            await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
+
+            // Optional short delay for smoother transition
+            await Task.Delay(500);
+
+            // Send embed as a separate normal message
             var displayName = resolved.Equals(requested, StringComparison.OrdinalIgnoreCase)
                 ? resolved
                 : $"{resolved} (alias: {requested})";
@@ -92,9 +123,14 @@ namespace DiscordWhoIs.Commands
                 embed.AddField(truncatedTitle, url, inline: false);
             }
 
-            await FollowupAsync(embeds: new[] { embed.Build() });
+            await Context.Channel.SendMessageAsync(embed: embed.Build());
+
+            await Task.Delay(500);
+
+            await DeleteOriginalResponseAsync();
 
             _logger.LogInformation("Fetched fics for {User}", requested);
         }
+
     }
 }

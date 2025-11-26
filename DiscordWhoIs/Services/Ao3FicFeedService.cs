@@ -1,6 +1,6 @@
 ﻿namespace DiscordWhoIs.Services
 {
-    using DiscordWhoIs.Interfaces;
+    using DiscordWhoIs.Databases.Interfaces;
     using HtmlAgilityPack;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Logging;
@@ -13,6 +13,8 @@
 
     public class Ao3FicFeedService
     {
+        private static readonly Regex PageCountRegex = new(@"page=([0-9]+)", RegexOptions.Compiled);
+
         private readonly HttpClient _http;
         private readonly IPersistentCache _cache;
         private readonly ILogger<Ao3FicFeedService> _logger;
@@ -20,16 +22,12 @@
         private readonly long? _targetFandomId;
         private readonly TimeSpan _cacheLength;
 
-        // ============================================
         // AO3 POLICY: Serialized requests
-        // ============================================
-        private static readonly SemaphoreSlim _ao3Lock = new(1, 1);
+        private readonly SemaphoreSlim _ao3Lock = new(1, 1); // Serialize AO3 requests
+        private readonly TimeSpan _ao3MinimumDelayMs; // 12 seconds between requests
+        private readonly TimeSpan _ao3BackoffMs;      // Backoff on throttle/timeouts
+
         private static DateTime _lastAo3RequestUtc = DateTime.MinValue;
-
-        private const int Ao3MinimumDelayMs = 12000; // 12 seconds between requests
-        private const int Ao3BackoffMs = 20000;      // Backoff on throttle/timeouts
-
-        private static readonly Regex PageCountRegex = new(@"page=([0-9]+)", RegexOptions.Compiled);
 
         public Ao3FicFeedService(
             IHttpClientFactory httpClientFactory,
@@ -52,9 +50,7 @@
 
             _targetFandomId = retVal;
 
-            // =======================================================
             // AO3 POLICY: Honest, contactable User-Agent
-            // =======================================================
             _http.DefaultRequestHeaders.UserAgent.Clear();
             _http.DefaultRequestHeaders.UserAgent.ParseAdd(
                 "DiscordWhoIsBot/1.0 (+31625469+PSilverSabe@users.noreply.github.com)"
@@ -66,6 +62,15 @@
                 _cacheLength = TimeSpan.FromHours(cl);
             else
                 _cacheLength = TimeSpan.FromHours(12);
+
+            _ao3MinimumDelayMs = int.TryParse(configuration?["AO3:MinimumDelaySeconds"], out var ds) && ds > 0
+                ? TimeSpan.FromSeconds(ds) : TimeSpan.FromSeconds(12);
+
+            _ao3BackoffMs = int.TryParse(configuration?["AO3:BackoffMilliseconds"], out var bm) && bm > 0
+                ? TimeSpan.FromMilliseconds(bm) : TimeSpan.FromMilliseconds(10000);
+
+            _ao3Lock = int.TryParse(configuration?["AO3:MaxConcurrentRequests"], out var mc) && mc > 0
+                ? new SemaphoreSlim(mc, mc) : new SemaphoreSlim(1, 1);
         }
 
         public long? TargetFandomId => _targetFandomId;
@@ -213,7 +218,7 @@
             try
             {
                 var elapsed = DateTime.UtcNow - _lastAo3RequestUtc;
-                var delay = Math.Max(0, Ao3MinimumDelayMs - (int)elapsed.TotalMilliseconds);
+                var delay = Math.Max(0, _ao3MinimumDelayMs.Milliseconds - (int)elapsed.TotalMilliseconds);
                 if (delay > 0)
                 {
                     _logger.LogInformation("[AO3] Waiting {Delay}ms per robots policy", delay);
@@ -232,8 +237,8 @@
 
                     if ((int)resp.StatusCode == 429)
                     {
-                        _logger.LogWarning("[AO3] 429 Too Many Requests — backing off {Ms}ms", Ao3BackoffMs);
-                        await Task.Delay(Ao3BackoffMs);
+                        _logger.LogWarning("[AO3] 429 Too Many Requests — backing off {Ms}ms", _ao3BackoffMs);
+                        await Task.Delay(_ao3BackoffMs);
                         return null;
                     }
 
@@ -248,14 +253,14 @@
                 }
                 catch (TaskCanceledException)
                 {
-                    _logger.LogWarning("[AO3] Timeout — backing off {Ms}ms", Ao3BackoffMs);
-                    await Task.Delay(Ao3BackoffMs);
+                    _logger.LogWarning("[AO3] Timeout — backing off {Ms}ms", _ao3BackoffMs);
+                    await Task.Delay(_ao3BackoffMs);
                     return null;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[AO3] Request failed — backing off {Ms}ms", Ao3BackoffMs);
-                    await Task.Delay(Ao3BackoffMs);
+                    _logger.LogError(ex, "[AO3] Request failed — backing off {Ms}ms", _ao3BackoffMs);
+                    await Task.Delay(_ao3BackoffMs);
                     return null;
                 }
             }

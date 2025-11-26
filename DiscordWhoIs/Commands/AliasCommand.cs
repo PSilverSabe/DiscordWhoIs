@@ -1,6 +1,6 @@
 ﻿using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Interfaces;
+using DiscordWhoIs.Databases.Interfaces;
 using System.Text;
 
 namespace DiscordWhoIs.Commands
@@ -74,7 +74,7 @@ namespace DiscordWhoIs.Commands
 
             try
             {
-                var removed = _store.Remove(alias);
+                var removed = await _store.RemoveAsync(alias);
                 if (removed)
                 {
                     _logger.LogInformation("Alias removed by {Actor}: {Alias}", guildUser.Username, alias);
@@ -85,7 +85,7 @@ namespace DiscordWhoIs.Commands
                     await RespondAsync($"Alias `{alias}` not found.", ephemeral: true);
                 }
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to remove alias {Alias}", alias);
                 await RespondAsync("Failed to remove alias due to an internal error.", ephemeral: true);

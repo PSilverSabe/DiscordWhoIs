@@ -4,6 +4,9 @@
 		<type fullname="DiscordWhoIs.Commands.WhoIsCommandModule" preserve="all"/>
 		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all"/>
 		<type fullname="DiscordWhoIs.Commands.ClearCacheCommandModule" preserve="all"/>
+
+		<!-- Preserve other InteractionModuleBase types if you add more -->
+		<!--<type fullname="DiscordWhoIs.Commands.Modules.OtherCommandModule" preserve="all"/>-->
 	</assembly>
 
 	<!-- Preserve Discord.Net assemblies used by reflection -->

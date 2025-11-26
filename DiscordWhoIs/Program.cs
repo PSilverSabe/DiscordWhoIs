@@ -1,20 +1,17 @@
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Cache;
-using DiscordWhoIs.Interfaces;
+using DiscordWhoIs.Databases;
+using DiscordWhoIs.Databases.DbContexts;
+using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Logging.Handler;
 using DiscordWhoIs.Registry;
 using DiscordWhoIs.Services;
-using DiscordWhoIs.Store;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
-using System.Net.Http;
 
 public class Program
 {
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(DiscordWhoIs.Commands.WhoIsCommandModule))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(DiscordWhoIs.Commands.AliasCommandModule))]
     public static async Task Main(string[] args)
     {
         var builder = Host.CreateDefaultBuilder(args)
@@ -35,48 +32,38 @@ public class Program
                         { "Discord:DevGuildId", Environment.GetEnvironmentVariable("Discord_DevGuildId") },
                         { "Alias:Path", Environment.GetEnvironmentVariable("Alias_Path") },
                         { "Cache:Path", Environment.GetEnvironmentVariable("Cache_Path") },
-                        { "Cache:ExpirationInHours", Environment.GetEnvironmentVariable("Cache_Experiation_In_Hours") }
+                        { "Cache:FlushIntervalSeconds", Environment.GetEnvironmentVariable("Cache_FlushIntervalSeconds") },
+                        { "Cache:CleanupIntervalSeconds", Environment.GetEnvironmentVariable("Cache_CleanupIntervalSeconds") }
                     });
                 }
             })
-
             .ConfigureServices((context, services) =>
             {
+                var configuration = context.Configuration;
+
                 services.AddLogging(b => b.AddConsole());
                 services.AddMemoryCache();
 
+                // Persistent HTTP client (fixes Docker Linux hanging issue)
                 services.AddHttpClient("Ao3")
                     .ConfigureHttpClient(client =>
                     {
                         client.Timeout = Timeout.InfiniteTimeSpan;
                         client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0");
                         client.DefaultRequestHeaders.Accept.ParseAdd("text/html");
-                    });
-
-                // ---------------------------------------------------------
-                // Persistent HTTP client (fixes Docker Linux hanging issue)
-                // ---------------------------------------------------------
-                services.AddHttpClient<Ao3FicFeedService>(client =>
-                {
-                    client.Timeout = Timeout.InfiniteTimeSpan; // we manage timeout manually
-                })
-                .ConfigurePrimaryHttpMessageHandler(() =>
-                {
-                    var handler = new SocketsHttpHandler
+                    })
+                    .ConfigurePrimaryHttpMessageHandler(() =>
                     {
-                        PooledConnectionLifetime = TimeSpan.FromMinutes(5), // Fixes Docker DNS stalling
-                        AutomaticDecompression = DecompressionMethods.All,
-                        ConnectTimeout = TimeSpan.FromSeconds(10)
-                    };
+                        return new SocketsHttpHandler
+                        {
+                            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                            AutomaticDecompression = DecompressionMethods.All,
+                            ConnectTimeout = TimeSpan.FromSeconds(10)
+                        };
+                    })
+                    .AddHttpMessageHandler(() => new LoggingHandler());
 
-                    Console.WriteLine("### HttpClient Handler Created ###");
-                    Console.WriteLine("DNS refresh interval = 5 minutes");
-                    Console.WriteLine("ConnectTimeout       = 10s");
-                    Console.WriteLine("Pooled connections   = Enabled");
-                    Console.WriteLine("Using SocketsHttpHandler");
-
-                    return handler;
-                });
+                services.AddSingleton<Ao3FicFeedService>();
 
                 // Discord Client
                 services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
@@ -84,7 +71,18 @@ public class Program
                     GatewayIntents = GatewayIntents.AllUnprivileged
                 }));
 
-                // SQLite Cache + Hosted Service
+                // DB Paths
+                var cacheDbFile = configuration["Cache:Path"]?.Trim() ?? Path.Combine(AppContext.BaseDirectory, "persistent_cache.sqlite");
+                var aliasDbFile = configuration["Alias:Path"]?.Trim() ?? Path.Combine(AppContext.BaseDirectory, "aliases.sqlite");
+
+                // DbContext factories
+                services.AddDbContextFactory<CacheDbContext>(options =>
+                    options.UseSqlite($"Data Source={cacheDbFile}"));
+
+                services.AddDbContextFactory<AliasDbContext>(options =>
+                    options.UseSqlite($"Data Source={aliasDbFile}"));
+
+                // Caches & Stores
                 services.AddSingleton<SqlitePersistentCache>();
                 services.AddSingleton<IPersistentCache>(sp => sp.GetRequiredService<SqlitePersistentCache>());
                 services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SqlitePersistentCache>());
@@ -92,29 +90,29 @@ public class Program
                 services.AddSingleton<SqliteAliasStore>();
                 services.AddSingleton<IAliasStore>(sp => sp.GetRequiredService<SqliteAliasStore>());
 
-                // ******** NEW: InteractionService ********
+                // InteractionService
                 services.AddSingleton(sp =>
                 {
                     var client = sp.GetRequiredService<DiscordSocketClient>();
                     return new InteractionService(client.Rest);
                 });
 
-                // ******** NEW: CommandRegistry ********
+                // CommandRegistry
                 services.AddSingleton<CommandRegistry>();
 
                 // Bot Service
                 services.AddSingleton<BotService>();
-
-                services.AddHttpClient<Ao3FicFeedService>().AddHttpMessageHandler(() => new LoggingHandler());
             });
+
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2Support", false);
         AppContext.SetSwitch("System.Net.Http.EnableActivityPropagation", true);
+
         var host = builder.Build();
 
         // Start Discord bot
         await host.Services.GetRequiredService<BotService>().StartAsync();
 
-        // Start ASP.NET listener
+        // Start the host (background services, e.g., cache)
         await host.RunAsync();
     }
 }

@@ -1,4 +1,4 @@
-namespace DiscordWhoIs.Interfaces
+namespace DiscordWhoIs.Databases.Interfaces
 {
     using System;
 
