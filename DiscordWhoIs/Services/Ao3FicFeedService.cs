@@ -17,7 +17,6 @@
         private readonly IPersistentCache _cache;
         private readonly ILogger<Ao3FicFeedService> _logger;
         private readonly IAliasStore _aliasStore;
-        private readonly IAo3RobotsPolicy _robotsPolicy;
         private readonly long? _targetFandomId;
         private readonly TimeSpan _cacheLength;
 
@@ -34,14 +33,12 @@
 
         public Ao3FicFeedService(
             IHttpClientFactory httpClientFactory,
-            IAo3RobotsPolicy robotsPolicy,
             IPersistentCache cache,
             ILogger<Ao3FicFeedService> logger,
             IConfiguration configuration,
             IAliasStore aliasStore)
         {
             _http = httpClientFactory.CreateClient("Ao3");
-            _robotsPolicy = robotsPolicy;
             _cache = cache;
             _logger = logger;
             _aliasStore = aliasStore ?? throw new ArgumentNullException(nameof(aliasStore));
@@ -212,14 +209,6 @@
 
         private async Task<string?> SafeGetStringAo3Async(string url)
         {
-            if (!_robotsPolicy.IsPathAllowed(url))
-            {
-                _logger.LogWarning("Blocked by robots.txt: {Url}", url);
-                return null;
-            }
-
-            await _robotsPolicy.EnforceRateLimitAsync();
-
             await _ao3Lock.WaitAsync();
             try
             {

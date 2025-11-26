@@ -45,7 +45,6 @@ public class Program
                 services.AddLogging(b => b.AddConsole());
                 services.AddMemoryCache();
 
-                services.AddSingleton<IAo3RobotsPolicy, Ao3RobotsPolicyService>();
                 services.AddHttpClient("Ao3")
                     .ConfigureHttpClient(client =>
                     {
