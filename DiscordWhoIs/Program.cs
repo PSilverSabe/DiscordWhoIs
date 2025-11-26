@@ -45,22 +45,21 @@ public class Program
                 services.AddLogging(b => b.AddConsole());
                 services.AddMemoryCache();
 
+                services.AddSingleton<IAo3RobotsPolicy, Ao3RobotsPolicyService>();
+                services.AddHttpClient("Ao3")
+                    .ConfigureHttpClient(client =>
+                    {
+                        client.Timeout = Timeout.InfiniteTimeSpan;
+                        client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0");
+                        client.DefaultRequestHeaders.Accept.ParseAdd("text/html");
+                    });
+
                 // ---------------------------------------------------------
                 // Persistent HTTP client (fixes Docker Linux hanging issue)
                 // ---------------------------------------------------------
                 services.AddHttpClient<Ao3FicFeedService>(client =>
                 {
                     client.Timeout = Timeout.InfiniteTimeSpan; // we manage timeout manually
-                    client.DefaultRequestHeaders.Accept.Clear();
-                    client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0");
-                    client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
-                    client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
-                    client.DefaultRequestHeaders.Add("Connection", "keep-alive");
-                    client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
-                    client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "navigate");
-                    client.DefaultRequestHeaders.Add("Sec-Fetch-Site", "none");
-                    client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
-                    client.DefaultRequestHeaders.Add("Cache-Control", "max-age=0");
                 })
                 .ConfigurePrimaryHttpMessageHandler(() =>
                 {
