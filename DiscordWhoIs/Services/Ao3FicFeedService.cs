@@ -198,19 +198,56 @@
 
         private async Task<string?> SafeGetStringAsync(string url)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _logger.LogInformation("[HTTP] Starting request to {Url}", url);
+
             try
             {
-                var resp = await _http.GetAsync(url);
-                if (!resp.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("AO3 returned {Status} for {Url}", resp.StatusCode, url);
-                    return null;
-                }
-                return await resp.Content.ReadAsStringAsync();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+                _logger.LogInformation("[HTTP] Sending GET {Url}...", url);
+
+                var resp = await _http.GetAsync(
+                    url,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cts.Token
+                );
+
+                _logger.LogInformation(
+                    "[HTTP] Received headers {Status} from {Url} after {Elapsed}ms",
+                    resp.StatusCode,
+                    url,
+                    sw.ElapsedMilliseconds
+                );
+
+                var content = await resp.Content.ReadAsStringAsync(cts.Token);
+
+                _logger.LogInformation(
+                    "[HTTP] Finished reading body from {Url} ({Bytes} bytes) in {Elapsed}ms",
+                    url,
+                    content?.Length ?? 0,
+                    sw.ElapsedMilliseconds
+                );
+
+                return content;
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.LogWarning(
+                    "[HTTP] TIMEOUT fetching {Url} after {Elapsed}ms",
+                    url,
+                    sw.ElapsedMilliseconds
+                );
+                return null;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching {Url}", url);
+                _logger.LogError(
+                    ex,
+                    "[HTTP] ERROR fetching {Url} after {Elapsed}ms",
+                    url,
+                    sw.ElapsedMilliseconds
+                );
                 return null;
             }
         }
