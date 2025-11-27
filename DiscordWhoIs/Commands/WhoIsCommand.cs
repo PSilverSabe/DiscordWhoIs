@@ -102,7 +102,7 @@ namespace DiscordWhoIs.Commands
 
             var embed = new EmbedBuilder()
                 .WithTitle($"Recent works for {displayName}")
-                .WithDescription($"Showing up to 10 works. Cached for {_cacheConfig.ExpirationInHours.Hours} hours.")
+                .WithDescription($"Showing up to 10 works. Cached for {_cacheConfig.ExpirationInHours.TotalHours    } hours.")
                 .WithFooter("Source: Archive of Our Own")
                 .WithColor(Color.DarkBlue);
 

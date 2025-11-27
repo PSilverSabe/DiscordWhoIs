@@ -54,8 +54,8 @@ namespace DiscordWhoIs
                                 AutomaticDecompression = DecompressionMethods.All,
                                 ConnectTimeout = TimeSpan.FromSeconds(10)
                             };
-                        })
-                        .AddHttpMessageHandler(() => new LoggingHandler());
+                        });
+                        //.AddHttpMessageHandler(() => new LoggingHandler());
 
                     // Environment-based database paths
                     var baseDir = AppContext.BaseDirectory;
