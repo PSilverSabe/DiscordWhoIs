@@ -1,6 +1,6 @@
 ﻿using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.Interfaces;
-using DiscordWhoIs.Databases.Models;
+using DiscordWhoIs.Databases.DbModels;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
 
@@ -28,7 +28,7 @@ namespace DiscordWhoIs.Databases
             }
         }
 
-        public IReadOnlyList<AliasEntry> GetAllAliases() => _store.Values.ToList();
+        public IReadOnlyList<AliasEntry> GetAllAliases() => [.. _store.Values];
 
         public bool TryResolve(string alias, out string real)
         {
@@ -44,14 +44,13 @@ namespace DiscordWhoIs.Databases
             return _store.TryGetValue(alias.Trim(), out entry);
         }
 
-        public async Task AddOrUpdateAsync(string alias, string real, string? description = null)
+        public async Task AddOrUpdateAsync(string alias, string real)
         {
             if (string.IsNullOrWhiteSpace(alias)) throw new ArgumentException("Alias cannot be empty.", nameof(alias));
             if (string.IsNullOrWhiteSpace(real)) throw new ArgumentException("Real username cannot be empty.", nameof(real));
 
             alias = alias.Trim();
             real = real.Trim();
-            description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
 
             await _dbLock.WaitAsync();
             try
@@ -62,19 +61,18 @@ namespace DiscordWhoIs.Databases
                 if (existing != null)
                 {
                     existing.Real = real;
-                    existing.Description = description;
                     context.AliasEntries.Update(existing);
                 }
                 else
                 {
-                    var newEntry = new AliasEntry(alias, real, description);
+                    var newEntry = new AliasEntry(alias, real);
                     await context.AliasEntries.AddAsync(newEntry);
                 }
 
                 await context.SaveChangesAsync();
 
-                _store[alias] = new AliasEntry(alias, real, description);
-                _logger.LogInformation("Added/updated alias {Alias} -> {Real} (desc: {Desc})", alias, real, description ?? "<none>");
+                _store[alias] = new AliasEntry(alias, real);
+                _logger.LogInformation("Added/updated alias {Alias} -> {Real}", alias, real ?? "<none>");
             }
             finally
             {

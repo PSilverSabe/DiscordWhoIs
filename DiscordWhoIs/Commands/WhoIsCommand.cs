@@ -1,36 +1,34 @@
 ﻿using Discord;
 using Discord.Interactions;
+using DiscordWhoIs.Configuration.Models;
 using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Services;
+using Microsoft.Extensions.Options;
 
 namespace DiscordWhoIs.Commands
 {
     public class WhoIsCommandModule : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly Ao3FicFeedService _ao3;
+        private readonly Ao3FicFeedService _Ao3;
         private readonly ILogger<WhoIsCommandModule> _logger;
-        private readonly TimeSpan _cacheLength;
         private readonly IPersistentCache _cache;
+        private readonly CacheConfiguration _cacheConfig;
 
         public WhoIsCommandModule(
-            Ao3FicFeedService ao3,
+            Ao3FicFeedService Ao3,
             IPersistentCache cache,
             ILogger<WhoIsCommandModule> logger,
-            IConfiguration configuration)
+            CacheConfiguration cacheOptions)
         {
-            _ao3 = ao3;
+            _Ao3 = Ao3;
             _logger = logger;
             _cache = cache;
-
-            if (int.TryParse(configuration?["Cache:ExpirationInHours"], out var cl) && cl > 0)
-                _cacheLength = TimeSpan.FromHours(cl);
-            else
-                _cacheLength = TimeSpan.FromHours(12);
+            _cacheConfig = cacheOptions;
         }
 
-        [SlashCommand("whoisauthor", "Fetch fics for an AO3 user.")]
+        [SlashCommand("whoisauthor", "Fetch fics for an Ao3 user.")]
         public async Task WhoIsAsync(
-            [Summary("user", "AO3 username or configured alias")] string requested)
+            [Summary("user", "Ao3 username or configured alias")] string requested)
         {
             if (string.IsNullOrWhiteSpace(requested))
             {
@@ -44,7 +42,7 @@ namespace DiscordWhoIs.Commands
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Resolve alias
-            var (resolved, description) = _ao3.ResolveAo3UsernameWithDescription(requested);
+            var resolved = _Ao3.ResolveAo3Username(requested);
             if (!resolved.Equals(requested, StringComparison.OrdinalIgnoreCase))
             {
                 statusLines.Add($"Alias **{requested}** resolved to **{resolved}**.");
@@ -53,15 +51,15 @@ namespace DiscordWhoIs.Commands
 
             await Task.Delay(1000);
 
-            var cacheKeyResolved = $"ao3_{resolved}";
+            var cacheKeyResolved = $"{resolved}";
             string actionLine;
-            if (_cache.TryGetValue<IEnumerable<(string, string)>>(cacheKeyResolved, out _))
+            if (_cache.TryGetValue(cacheKeyResolved, out _))
             {
                 actionLine = $"Cache hit for **{resolved}**, retrieving fics";
             }
             else
             {
-                actionLine = $"No cached fics for **{resolved}**, scraping AO3";
+                actionLine = $"No cached fics for **{resolved}**, scraping Ao3";
             }
 
             statusLines.Add(actionLine);
@@ -86,11 +84,11 @@ namespace DiscordWhoIs.Commands
             });
 
             // Fetch fics
-            var fics = (await _ao3.GetUserFicsAsync(resolved)).ToList();
+            var fics = (await _Ao3.GetUserFicsAsync(resolved)).ToList();
             ficsFetched = true;
             await loadingTask; // ensure animation stops cleanly
 
-            if (!fics.Any())
+            if (fics.Count == 0)
             {
                 statusLines.Add($"No fics found for **{resolved}**" +
                                 (resolved.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
@@ -112,22 +110,17 @@ namespace DiscordWhoIs.Commands
 
             var embed = new EmbedBuilder()
                 .WithTitle($"Recent works for {displayName}")
-                .WithDescription($"Showing up to 10 works. Cached for {_cacheLength.TotalHours} hours." +
-                                 (string.IsNullOrWhiteSpace(description) ? "" : $"\n\n{description}"))
+                .WithDescription($"Showing up to 10 works. Cached for {_cacheConfig.ExpirationInHours.Hours} hours.")
                 .WithFooter("Source: Archive of Our Own")
                 .WithColor(Color.DarkBlue);
 
-            foreach (var (title, url) in fics.Take(10))
+            foreach (var fic in fics.Take(10))
             {
-                var truncatedTitle = title.Length > 256 ? title.Substring(0, 253) + "..." : title;
-                embed.AddField(truncatedTitle, url, inline: false);
+                var truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
+                embed.AddField(truncatedTitle, fic.Url, inline: false);
             }
 
             await Context.Channel.SendMessageAsync(embed: embed.Build());
-
-            await Task.Delay(500);
-
-            await DeleteOriginalResponseAsync();
 
             _logger.LogInformation("Fetched fics for {User}", requested);
         }

@@ -1,36 +1,39 @@
 ﻿using Discord.Interactions;
+using DiscordWhoIs.Databases.DataModels;
 using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Services;
 
 namespace DiscordWhoIs.Commands
 {
-    public class ClearCacheCommandModule : InteractionModuleBase<SocketInteractionContext>
+    public class ClearCacheCommandModule(Ao3FicFeedService Ao3, IPersistentCache persistentCache) : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly Ao3FicFeedService _ao3;
-        private readonly IPersistentCache _cache;
+        private readonly Ao3FicFeedService _Ao3 = Ao3;
+        private readonly IPersistentCache _cache = persistentCache;
 
-        public ClearCacheCommandModule(Ao3FicFeedService ao3, IPersistentCache persistentCache)
-        {
-            _ao3 = ao3;
-            _cache = persistentCache;
-        }
-
-        [SlashCommand("clearcache", "Clear the AO3 fic cache")]
+        [SlashCommand("clearcache", "Clear the Ao3 fic cache")]
         public async Task ClearCacheAsync(
-            [Summary("user", "AO3 username to remove from Cache")]string ao3Username
+            [Summary("user", "Ao3 username to remove from Cache")] string Ao3Username
             )
         {
-            // await DeferAsync(ephemeral: true); // Acknowledge the command
-            var hasCacheKey = _cache.TryGetValue< IEnumerable<(string, string)>>(ao3Username, out _);
+            await DeferAsync(ephemeral: true); // Acknowledge the command
+            var hasCacheKey = _cache.TryGetValue($"{Ao3Username}", out _);
 
             if (hasCacheKey)
             {
-                _cache.Remove(ao3Username);
-                await FollowupAsync($"AO3 fic cache cleared for user {ao3Username}.", ephemeral: true);
+                await _cache.RemoveAsync(Ao3Username);
+                hasCacheKey = _cache.TryGetValue($"{Ao3Username}", out _);
+                if (hasCacheKey)
+                {
+                    await FollowupAsync($"Ao3 cache cleared for user {Ao3Username}.", ephemeral: true);
+                    return;
+                }
+                else
+                {
+                    await FollowupAsync($"Ao3 cache was cleared but still persisted, shit.", ephemeral: true);
+                }
             }
 
-            await FollowupAsync("AO3 User Not Cached.", ephemeral: true);
+            await FollowupAsync($"``{Ao3Username}`` Not Cached.", ephemeral: true);
         }
-
     }
 }

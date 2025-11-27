@@ -1,14 +1,14 @@
-﻿using DiscordWhoIs.Databases.Models;
+﻿using DiscordWhoIs.Databases.DbModels;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DiscordWhoIs.Databases.DbContexts
 {
-    public class AliasDbContext : DbContext
+    [method: DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(AliasEntry))]
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+    public class AliasDbContext(DbContextOptions<AliasDbContext> options) : DbContext(options)
+#pragma warning restore IL2026 
     {
-        [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
-        public AliasDbContext(DbContextOptions<AliasDbContext> options) : base(options) { }
-
         public DbSet<AliasEntry> AliasEntries { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -20,9 +20,7 @@ namespace DiscordWhoIs.Databases.DbContexts
                 entity.HasKey(e => e.Alias);
                 entity.Property(e => e.Alias).IsRequired().HasMaxLength(256);
                 entity.Property(e => e.Real).IsRequired().HasMaxLength(256);
-                entity.Property(e => e.Description).HasMaxLength(1024);
             });
-            modelBuilder.Entity<AliasEntry>().ToTable("aliases");
         }
     }
 }

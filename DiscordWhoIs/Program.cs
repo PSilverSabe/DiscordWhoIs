@@ -1,118 +1,129 @@
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordWhoIs.Commands.Registry;
+using DiscordWhoIs.Configuration;
+using DiscordWhoIs.Configuration.Models;
 using DiscordWhoIs.Databases;
 using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Logging.Handler;
-using DiscordWhoIs.Registry;
 using DiscordWhoIs.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 
-public class Program
+namespace DiscordWhoIs
 {
-    public static async Task Main(string[] args)
+    public class Program
     {
-        var builder = Host.CreateDefaultBuilder(args)
-            .ConfigureAppConfiguration((context, config) =>
-            {
-                config.AddEnvironmentVariables();
-                config.AddJsonFile("appsettings.json", optional: false);
-                config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
-
-                if (!context.HostingEnvironment.IsDevelopment())
+        public static async Task Main(string[] args)
+        {
+            var builder = Host.CreateDefaultBuilder(args)
+                .ConfigureAppConfiguration((context, config) =>
                 {
-                    config.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        { "Fandom:TargetFandom", Environment.GetEnvironmentVariable("Fandom_TargetFandom") },
-                        { "Discord:Token", Environment.GetEnvironmentVariable("Discord_Token") },
-                        { "Discord:AllowRoleIds", Environment.GetEnvironmentVariable("Discord_AllowRoleIds") },
-                        { "Discord:DevMode", Environment.GetEnvironmentVariable("Discord_DevMode") },
-                        { "Discord:DevGuildId", Environment.GetEnvironmentVariable("Discord_DevGuildId") },
-                        { "Alias:Path", Environment.GetEnvironmentVariable("Alias_Path") },
-                        { "Cache:Path", Environment.GetEnvironmentVariable("Cache_Path") },
-                        { "Cache:FlushIntervalSeconds", Environment.GetEnvironmentVariable("Cache_FlushIntervalSeconds") },
-                        { "Cache:CleanupIntervalSeconds", Environment.GetEnvironmentVariable("Cache_CleanupIntervalSeconds") }
-                    });
-                }
-            })
-            .ConfigureServices((context, services) =>
-            {
-                var configuration = context.Configuration;
+                    config.AddEnvironmentVariables();
+                    config.AddEnvironmentVariables(prefix: "DW_");
+                    config.AddJsonFile("appsettings.json", optional: false);
+                    config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
+                })
+                .ConfigureServices((context, services) =>
+                {
+                    // Bind Configurations and Validate
+                    var fandomConfig = context.Configuration.BindValidated<FandomConfiguration>("Fandom");
+                    var discordConfig = context.Configuration.BindValidated<DiscordConfiguration>("Discord");
+                    var ao3Config = context.Configuration.BindValidated<Ao3Configuration>("Ao3");
+                    var aliasConfig = context.Configuration.BindValidated<AliasConfiguration>("Alias");
+                    var cacheConfig = context.Configuration.BindValidated<CacheConfiguration>("Cache");
 
-                services.AddLogging(b => b.AddConsole());
-                services.AddMemoryCache();
+                    services.AddLogging(b => b.AddConsole());
+                    services.AddMemoryCache();
 
-                // Persistent HTTP client (fixes Docker Linux hanging issue)
-                services.AddHttpClient("Ao3")
-                    .ConfigureHttpClient(client =>
-                    {
-                        client.Timeout = Timeout.InfiniteTimeSpan;
-                        client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0");
-                        client.DefaultRequestHeaders.Accept.ParseAdd("text/html");
-                    })
-                    .ConfigurePrimaryHttpMessageHandler(() =>
-                    {
-                        return new SocketsHttpHandler
+                    // Persistent HTTP client (fixes Docker Linux hanging issue)
+                    services.AddHttpClient("Ao3")
+                        .ConfigureHttpClient(client =>
                         {
-                            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-                            AutomaticDecompression = DecompressionMethods.All,
-                            ConnectTimeout = TimeSpan.FromSeconds(10)
-                        };
-                    })
-                    .AddHttpMessageHandler(() => new LoggingHandler());
+                            client.Timeout = TimeSpan.FromSeconds(30);
+                            client.DefaultRequestHeaders.UserAgent.Clear();
+                            client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0 (+31625469+PSilverSabe@users.noreply.github.com)");
+                            client.DefaultRequestHeaders.Accept.ParseAdd("text/html");
+                        })
+                        .ConfigurePrimaryHttpMessageHandler(() =>
+                        {
+                            return new SocketsHttpHandler
+                            {
+                                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                                AutomaticDecompression = DecompressionMethods.All,
+                                ConnectTimeout = TimeSpan.FromSeconds(10)
+                            };
+                        })
+                        .AddHttpMessageHandler(() => new LoggingHandler());
 
-                services.AddSingleton<Ao3FicFeedService>();
+                    // Environment-based database paths
+                    var baseDir = AppContext.BaseDirectory;
 
-                // Discord Client
-                services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
-                {
-                    GatewayIntents = GatewayIntents.AllUnprivileged
-                }));
+                    var cacheDb = context.HostingEnvironment.IsDevelopment()
+                        ? Path.Combine(baseDir, "cache.sqlite")
+                        : cacheConfig.Path ?? Path.Combine(baseDir, "cache.sqlite");
 
-                // DB Paths
-                var cacheDbFile = configuration["Cache:Path"]?.Trim() ?? Path.Combine(AppContext.BaseDirectory, "persistent_cache.sqlite");
-                var aliasDbFile = configuration["Alias:Path"]?.Trim() ?? Path.Combine(AppContext.BaseDirectory, "aliases.sqlite");
+                    var aliasDb = context.HostingEnvironment.IsDevelopment()
+                        ? Path.Combine(baseDir, "aliases.sqlite")
+                        : aliasConfig.Path ?? Path.Combine(baseDir, "aliases.sqlite");
 
-                // DbContext factories
-                services.AddDbContextFactory<CacheDbContext>(options =>
-                    options.UseSqlite($"Data Source={cacheDbFile}"));
+                    // DbContext factories
+                    services.AddDbContextFactory<CacheDbContext>(options =>
+                        options.UseSqlite($"Data Source={cacheDb}"));
 
-                services.AddDbContextFactory<AliasDbContext>(options =>
-                    options.UseSqlite($"Data Source={aliasDbFile}"));
+                    services.AddDbContextFactory<AliasDbContext>(options =>
+                        options.UseSqlite($"Data Source={aliasDb}"));
 
-                // Caches & Stores
-                services.AddSingleton<SqlitePersistentCache>();
-                services.AddSingleton<IPersistentCache>(sp => sp.GetRequiredService<SqlitePersistentCache>());
-                services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SqlitePersistentCache>());
+                    // Ao3 Fic Feed Service
+                    services.AddSingleton<Ao3FicFeedService>();
 
-                services.AddSingleton<SqliteAliasStore>();
-                services.AddSingleton<IAliasStore>(sp => sp.GetRequiredService<SqliteAliasStore>());
+                    // Discord Client
+                    services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
+                    {
+                        GatewayIntents = GatewayIntents.AllUnprivileged
+                    }));
 
-                // InteractionService
-                services.AddSingleton(sp =>
-                {
-                    var client = sp.GetRequiredService<DiscordSocketClient>();
-                    return new InteractionService(client.Rest);
+                    // Caches & Stores
+                    services.AddSingleton<SqlitePersistentCache>();
+                    services.AddSingleton<IPersistentCache>(sp => sp.GetRequiredService<SqlitePersistentCache>());
+                    services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SqlitePersistentCache>());
+
+                    services.AddSingleton<SqliteAliasStore>();
+                    services.AddSingleton<IAliasStore>(sp => sp.GetRequiredService<SqliteAliasStore>());
+
+                    // InteractionService
+                    services.AddSingleton(sp =>
+                    {
+                        var client = sp.GetRequiredService<DiscordSocketClient>();
+                        return new InteractionService(client.Rest);
+                    });
+
+                    // CommandRegistry
+                    services.AddSingleton<CommandRegistry>();
+
+                    // Bot Service
+                    services.AddSingleton<BotService>();
+
+                    // Config Bindings
+                    services.AddSingleton(fandomConfig);
+                    services.AddSingleton(discordConfig);
+                    services.AddSingleton(aliasConfig);
+                    services.AddSingleton(cacheConfig);
+                    services.AddSingleton(ao3Config);
                 });
 
-                // CommandRegistry
-                services.AddSingleton<CommandRegistry>();
+            AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2Support", false);
+            AppContext.SetSwitch("System.Net.Http.EnableActivityPropagation", true);
 
-                // Bot Service
-                services.AddSingleton<BotService>();
-            });
+            var host = builder.Build();
 
-        AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2Support", false);
-        AppContext.SetSwitch("System.Net.Http.EnableActivityPropagation", true);
+            // Start Discord bot
+            await host.Services.GetRequiredService<BotService>().StartAsync();
 
-        var host = builder.Build();
-
-        // Start Discord bot
-        await host.Services.GetRequiredService<BotService>().StartAsync();
-
-        // Start the host (background services, e.g., cache)
-        await host.RunAsync();
+            // Start the host (background services, e.g., cache)
+            await host.RunAsync();
+        }
     }
 }

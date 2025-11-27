@@ -1,8 +1,7 @@
 ﻿using Discord.Interactions;
-using Discord.Rest;
 using Discord.WebSocket;
 
-namespace DiscordWhoIs.Registry
+namespace DiscordWhoIs.Commands.Registry
 {
     public class CommandRegistry
     {

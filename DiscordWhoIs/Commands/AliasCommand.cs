@@ -5,27 +5,23 @@ using System.Text;
 
 namespace DiscordWhoIs.Commands
 {
-    [Group("alias", "Manage AO3 aliases")]
-    public class AliasCommandModule : InteractionModuleBase<SocketInteractionContext>
+    [Group("alias", "Manage Ao3 aliases")]
+    public class AliasCommandModule(IAliasStore store, ILogger<AliasCommandModule> logger) : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly IAliasStore _store;
-        private readonly ILogger<AliasCommandModule> _logger;
-
-        public AliasCommandModule(IAliasStore store, ILogger<AliasCommandModule> logger)
-        {
-            _store = store;
-            _logger = logger;
-        }
+        private readonly IAliasStore _store = store;
+        private readonly ILogger<AliasCommandModule> _logger = logger;
 
         // ----- ADD SUBCOMMAND -----
         [SlashCommand("add", "Add or update an alias")]
         public async Task AddAsync(
             [Summary("alias", "Alias name")] string alias,
-            [Summary("user", "AO3 account name")] string user)
+            [Summary("user", "Ao3 account name")] string user)
         {
-            if (!(Context.User is SocketGuildUser guildUser))
+            await DeferAsync(ephemeral: true);
+
+            if (Context.User is not SocketGuildUser guildUser)
             {
-                await RespondAsync("This command must be used in a server (guild).", ephemeral: true);
+                await FollowupAsync("This command must be used in a server (guild).", ephemeral: true);
                 return;
             }
 
@@ -35,24 +31,31 @@ namespace DiscordWhoIs.Commands
 
             if (!isAdmin)
             {
-                await RespondAsync("You do not have permission to manage aliases.", ephemeral: true);
+                await FollowupAsync("You do not have permission to manage aliases.", ephemeral: true);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(user))
             {
-                await RespondAsync("Both `alias` and `user` are required.", ephemeral: true);
+                await FollowupAsync("Both `alias` and `user` are required.", ephemeral: true);
                 return;
             }
+
+            await _store.AddOrUpdateAsync(alias, user);
+
+            await FollowupAsync($"Added/updated alias ``{alias}`` -> ``{user}``");
+            return;
         }
 
         // ----- REMOVE SUBCOMMAND -----
         [SlashCommand("remove", "Remove an alias")]
         public async Task RemoveAsync([Summary("alias", "Alias name to remove")] string alias)
         {
-            if (!(Context.User is SocketGuildUser guildUser))
+            await DeferAsync(ephemeral: true);
+
+            if (Context.User is not SocketGuildUser guildUser)
             {
-                await RespondAsync("This command must be used in a server (guild).", ephemeral: true);
+                await FollowupAsync("This command must be used in a server (guild).", ephemeral: true);
                 return;
             }
 
@@ -62,13 +65,13 @@ namespace DiscordWhoIs.Commands
 
             if (!isAdmin)
             {
-                await RespondAsync("You do not have permission to manage aliases.", ephemeral: true);
+                await FollowupAsync("You do not have permission to manage aliases.", ephemeral: true);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(alias))
             {
-                await RespondAsync("`alias` is required.", ephemeral: true);
+                await FollowupAsync("`alias` is required.", ephemeral: true);
                 return;
             }
 
@@ -78,17 +81,19 @@ namespace DiscordWhoIs.Commands
                 if (removed)
                 {
                     _logger.LogInformation("Alias removed by {Actor}: {Alias}", guildUser.Username, alias);
-                    await RespondAsync($"Removed alias `{alias}`.", ephemeral: true);
+                    await FollowupAsync($"Removed alias `{alias}`.", ephemeral: true);
+                    return;
                 }
                 else
                 {
-                    await RespondAsync($"Alias `{alias}` not found.", ephemeral: true);
+                    await FollowupAsync($"Alias `{alias}` not found.", ephemeral: true);
+                    return;
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to remove alias {Alias}", alias);
-                await RespondAsync("Failed to remove alias due to an internal error.", ephemeral: true);
+                await FollowupAsync("Failed to remove alias due to an internal error.", ephemeral: true);
             }
         }
 
@@ -96,9 +101,11 @@ namespace DiscordWhoIs.Commands
         [SlashCommand("list", "List configured aliases")]
         public async Task ListAsync()
         {
-            if (!(Context.User is SocketGuildUser guildUser))
+            await DeferAsync(ephemeral: true);
+
+            if (Context.User is not SocketGuildUser guildUser)
             {
-                await RespondAsync("This command must be used in a server (guild).", ephemeral: true);
+                await FollowupAsync("This command must be used in a server (guild).", ephemeral: true);
                 return;
             }
 
@@ -108,20 +115,16 @@ namespace DiscordWhoIs.Commands
 
             if (!isAdmin)
             {
-                await RespondAsync("You do not have permission to view aliases.", ephemeral: true);
+                await FollowupAsync("You do not have permission to view aliases.", ephemeral: true);
                 return;
             }
 
-            await DeferAsync(ephemeral: true);
-
             var entries = _store.GetAllAliases()
                 .OrderBy(e => e.Alias)
-                .Select(e => string.IsNullOrWhiteSpace(e.Description)
-                    ? $"{e.Alias} -> {e.Real}"
-                    : $"{e.Alias} -> {e.Real} ({e.Description})")
+                .Select(e => $"{e.Alias} -> {e.Real}")
                 .ToList();
 
-            if (!entries.Any())
+            if (entries.Count == 0)
             {
                 await FollowupAsync("No aliases configured.", ephemeral: true);
                 return;

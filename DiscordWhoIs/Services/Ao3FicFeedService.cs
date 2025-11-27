@@ -1,9 +1,12 @@
 ﻿namespace DiscordWhoIs.Services
 {
+    using DiscordWhoIs.Configuration.Models;
+    using DiscordWhoIs.Databases.DataModels;
     using DiscordWhoIs.Databases.Interfaces;
     using HtmlAgilityPack;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -14,66 +17,38 @@
     public class Ao3FicFeedService
     {
         private static readonly Regex PageCountRegex = new(@"page=([0-9]+)", RegexOptions.Compiled);
+        private static readonly object _lastRequestLock = new();
 
         private readonly HttpClient _http;
         private readonly IPersistentCache _cache;
         private readonly ILogger<Ao3FicFeedService> _logger;
         private readonly IAliasStore _aliasStore;
-        private readonly long? _targetFandomId;
-        private readonly TimeSpan _cacheLength;
-
-        // AO3 POLICY: Serialized requests
-        private readonly SemaphoreSlim _ao3Lock = new(1, 1); // Serialize AO3 requests
-        private readonly TimeSpan _ao3MinimumDelayMs; // 12 seconds between requests
-        private readonly TimeSpan _ao3BackoffMs;      // Backoff on throttle/timeouts
+        private readonly FandomConfiguration _fandomConfig;
+        private readonly CacheConfiguration _cacheConfig;
+        private readonly Ao3Configuration _ao3Config;
+        private readonly SemaphoreSlim _Ao3Lock; // concurrency control
 
         private static DateTime _lastAo3RequestUtc = DateTime.MinValue;
-
+        
         public Ao3FicFeedService(
             IHttpClientFactory httpClientFactory,
             IPersistentCache cache,
             ILogger<Ao3FicFeedService> logger,
-            IConfiguration configuration,
-            IAliasStore aliasStore)
+            IAliasStore aliasStore,
+            FandomConfiguration fandomConfig,
+            CacheConfiguration cacheConfig,
+            Ao3Configuration ao3Config)
         {
             _http = httpClientFactory.CreateClient("Ao3");
             _cache = cache;
             _logger = logger;
             _aliasStore = aliasStore ?? throw new ArgumentNullException(nameof(aliasStore));
+            _fandomConfig = fandomConfig;
+            _cacheConfig = cacheConfig;
+            _ao3Config = ao3Config;
 
-            var successParse = long.TryParse(configuration?["Fandom:TargetFandom"]?.Trim(), out var retVal);
-
-            if (_targetFandomId != null || !successParse)
-            {
-                _logger.LogInformation("Configured target fandom path: {Fandom}", _targetFandomId);
-            }
-
-            _targetFandomId = retVal;
-
-            // AO3 POLICY: Honest, contactable User-Agent
-            _http.DefaultRequestHeaders.UserAgent.Clear();
-            _http.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "DiscordWhoIsBot/1.0 (+31625469+PSilverSabe@users.noreply.github.com)"
-            );
-
-            _http.Timeout = TimeSpan.FromSeconds(30);
-
-            if (int.TryParse(configuration?["Cache:ExpirationInHours"], out var cl) && cl > 0)
-                _cacheLength = TimeSpan.FromHours(cl);
-            else
-                _cacheLength = TimeSpan.FromHours(12);
-
-            _ao3MinimumDelayMs = int.TryParse(configuration?["AO3:MinimumDelaySeconds"], out var ds) && ds > 0
-                ? TimeSpan.FromSeconds(ds) : TimeSpan.FromSeconds(12);
-
-            _ao3BackoffMs = int.TryParse(configuration?["AO3:BackoffMilliseconds"], out var bm) && bm > 0
-                ? TimeSpan.FromMilliseconds(bm) : TimeSpan.FromMilliseconds(10000);
-
-            _ao3Lock = int.TryParse(configuration?["AO3:MaxConcurrentRequests"], out var mc) && mc > 0
-                ? new SemaphoreSlim(mc, mc) : new SemaphoreSlim(1, 1);
+            _Ao3Lock = new SemaphoreSlim(_ao3Config.Ao3ConcurrencyLimit, _ao3Config.Ao3ConcurrencyLimit);
         }
-
-        public long? TargetFandomId => _targetFandomId;
 
         public string ResolveAo3Username(string input)
         {
@@ -83,34 +58,15 @@
             return trimmed;
         }
 
-        public (string Resolved, string? Description) ResolveAo3UsernameWithDescription(string input)
-        {
-            var resolved = ResolveAo3Username(input);
-            string? desc = null;
-
-            if (!string.IsNullOrWhiteSpace(input) && _aliasStore.TryGet(input.Trim(), out var byAlias))
-            {
-                desc = byAlias?.Description;
-            }
-
-            if (desc == null)
-            {
-                var match = _aliasStore.GetAllAliases().FirstOrDefault(e => string.Equals(e.Real, resolved, StringComparison.OrdinalIgnoreCase));
-                if (match is not null) desc = match.Description;
-            }
-
-            return (resolved, desc);
-        }
-
-        public async Task<IEnumerable<(string Title, string Url)>> GetUserFicsAsync(string user)
+        public async Task<IEnumerable<FicInfo>> GetUserFicsAsync(string user)
         {
             var resolvedUser = ResolveAo3Username(user);
 
             if (!string.Equals(user, resolvedUser, StringComparison.OrdinalIgnoreCase))
                 _logger.LogInformation("Resolved alias {Alias} -> {RealUser}", user, resolvedUser);
 
-            var cacheKeyResolved = $"ao3_{resolvedUser}";
-            if (_cache.TryGetValue<IEnumerable<(string, string)>>(cacheKeyResolved, out var cached))
+            var cacheKeyResolved = $"{resolvedUser}";
+            if (_cache.TryGetValue(cacheKeyResolved, out var cached))
             {
                 _logger.LogInformation("Persistent cache hit for {User}", resolvedUser);
                 return cached!;
@@ -118,40 +74,35 @@
 
             if (!string.Equals(user, resolvedUser, StringComparison.OrdinalIgnoreCase))
             {
-                var cacheKeyAlias = $"ao3_{user}";
-                if (_cache.TryGetValue<IEnumerable<(string, string)>>(cacheKeyAlias, out var aliasCached))
+                var cacheKeyAlias = $"{user}";
+                if (_cache.TryGetValue(cacheKeyAlias, out var aliasCached))
                 {
                     _logger.LogInformation("Persistent cache hit for alias {Alias} (mapped to {Resolved})", user, resolvedUser);
-                    _cache.Set(cacheKeyResolved, aliasCached!, _cacheLength);
+                    _cache.SetAsync(cacheKeyResolved, aliasCached!, _cacheConfig.ExpirationInHours);
                     return aliasCached!;
                 }
             }
 
-            _logger.LogInformation("Persistent cache miss for {User} - scraping AO3", resolvedUser);
-            var results = await ScrapeAllPagesAsync(resolvedUser);
+            _logger.LogInformation("Persistent cache miss for {User} - scraping Ao3", resolvedUser);
+            var results = await ScrapeAllPagesConcurrentAsync(resolvedUser);
 
-            _cache.Set(cacheKeyResolved, results, _cacheLength);
+            _cache.SetAsync(cacheKeyResolved, results, _cacheConfig.ExpirationInHours);
             return results;
         }
 
-        private async Task<IEnumerable<(string Title, string Url)>> ScrapeAllPagesAsync(string user)
+        private async Task<IEnumerable<FicInfo>> ScrapeAllPagesConcurrentAsync(string user)
         {
-            var baseUrl = $"https://archiveofourown.org/users/{user}/works/?fandom_id={TargetFandomId}";
-
-            // First page
+            var baseUrl = $"https://archiveofourown.org/users/{user}/works/?fandom_id={_fandomConfig.TargetFandom}";
             var firstPageHtml = await SafeGetStringAo3Async(baseUrl);
-            if (firstPageHtml is null) return Enumerable.Empty<(string, string)>();
+            if (firstPageHtml is null) return Enumerable.Empty<FicInfo>();
 
-            var results = new List<(string, string)>(ParseFicsFromHtml(firstPageHtml));
+            var results = new List<FicInfo>(ParseFicsFromHtml(firstPageHtml));
+            if (results.Count >= 10) return results.Take(10);
 
-            // If we already have 10 or more, no need to fetch more pages
-            if (results.Count >= 10)
-                return results.Take(10);
-
+            // Determine total pages
             var doc = new HtmlDocument();
             doc.LoadHtml(firstPageHtml);
 
-            // Discover number of pages
             var totalPages = 1;
             var pagination = doc.DocumentNode.SelectSingleNode("//ol[contains(@class,'pagination')]");
             if (pagination != null)
@@ -170,32 +121,57 @@
 
             _logger.LogInformation("User {User} has {Pages} pages", user, totalPages);
 
-            // Fetch additional pages only if needed
-            for (int page = 2; page <= totalPages; page++)
-            {
-                if (results.Count >= 10)
-                    break; // Stop if we already have 10 or more
+            if (totalPages <= 1) return results.Take(10);
 
-                var url = baseUrl + $"?page={page}";
-                var pageHtml = await SafeGetStringAo3Async(url);
-                results.AddRange(ParseFicsFromHtml(pageHtml));
+            // Fetch remaining pages concurrently
+            var pageNumbers = Enumerable.Range(2, totalPages - 1);
+            var pageTasks = pageNumbers.Select(page => FetchPageAsync(baseUrl, page)).ToList();
+
+            var pageResults = await Task.WhenAll(pageTasks);
+
+            foreach (var pageFics in pageResults)
+            {
+                results.AddRange(pageFics);
+                if (results.Count >= 10) break; // stop once we have 10 works
             }
 
-            // Return at most 10 results
             return results.Take(10);
         }
 
-        private IEnumerable<(string, string)> ParseFicsFromHtml(string? html)
+        private async Task<IEnumerable<FicInfo>> FetchPageAsync(string baseUrl, int page)
         {
-            if (html is null) return Enumerable.Empty<(string, string)>();
+            for (int attempt = 1; attempt <= _ao3Config.MaxRetries; attempt++)
+            {
+                var url = $"{baseUrl}&page={page}";
+                var html = await SafeGetStringAo3Async(url);
+
+                if (!string.IsNullOrEmpty(html))
+                    return ParseFicsFromHtml(html);
+
+                if (attempt < _ao3Config.MaxRetries)
+                {
+                    var backoff = TimeSpan.FromMilliseconds(_ao3Config.MaxRetries * Math.Pow(2, attempt - 1));
+                    _logger.LogWarning("[Ao3] Retry {Attempt}/{Max} for page {Page} after {Delay}ms", attempt, _ao3Config.MaxRetries, page, backoff.TotalMilliseconds);
+                    await Task.Delay(backoff);
+                }
+            }
+
+            _logger.LogError("[Ao3] Failed to fetch page {Page} after {Max} attempts", page, _ao3Config.MaxRetries);
+            return Enumerable.Empty<FicInfo>();
+        }
+
+
+        private IEnumerable<FicInfo> ParseFicsFromHtml(string? html)
+        {
+            if (html is null) return Enumerable.Empty<FicInfo>();
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
             var nodes = doc.DocumentNode.SelectNodes("//li[contains(@class,'work')]|//li[contains(@class,'work blurb group')]");
-            if (nodes == null) return Enumerable.Empty<(string, string)>();
+            if (nodes == null) return Enumerable.Empty<FicInfo>();
 
-            var results = new List<(string, string)>();
+            var results = new List<FicInfo>();
             foreach (var n in nodes)
             {
                 var titleNode = n.SelectSingleNode(".//h4/a") ?? n.SelectSingleNode(".//h4/span/a");
@@ -206,7 +182,11 @@
                 if (string.IsNullOrWhiteSpace(href)) continue;
 
                 var full = href.StartsWith("http") ? href : "https://archiveofourown.org" + href;
-                results.Add((title, full));
+                results.Add(new()
+                {
+                    Title = title,
+                    Url = full
+                });
             }
 
             return results;
@@ -214,21 +194,30 @@
 
         private async Task<string?> SafeGetStringAo3Async(string url)
         {
-            await _ao3Lock.WaitAsync();
+            await _Ao3Lock.WaitAsync();
             try
             {
-                var elapsed = DateTime.UtcNow - _lastAo3RequestUtc;
-                var delay = Math.Max(0, _ao3MinimumDelayMs.Milliseconds - (int)elapsed.TotalMilliseconds);
+                // Enforce minimal delay between requests
+                int delay = 0;
+                lock (_lastRequestLock)
+                {
+                    var elapsed = DateTime.UtcNow - _lastAo3RequestUtc;
+                    delay = Math.Max(0, (int)(_ao3Config.Ao3MinimumDelayMs.TotalMilliseconds - elapsed.TotalMilliseconds));
+                }
+
                 if (delay > 0)
                 {
-                    _logger.LogInformation("[AO3] Waiting {Delay}ms per robots policy", delay);
+                    _logger.LogInformation("[Ao3] Waiting {Delay}ms per robots policy", delay);
                     await Task.Delay(delay);
                 }
 
-                _lastAo3RequestUtc = DateTime.UtcNow;
+                lock (_lastRequestLock)
+                {
+                    _lastAo3RequestUtc = DateTime.UtcNow;
+                }
 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                _logger.LogInformation("[AO3-HTTP] GET {Url}", url);
+                _logger.LogInformation("[Ao3-HTTP] GET {Url}", url);
 
                 try
                 {
@@ -237,36 +226,36 @@
 
                     if ((int)resp.StatusCode == 429)
                     {
-                        _logger.LogWarning("[AO3] 429 Too Many Requests — backing off {Ms}ms", _ao3BackoffMs);
-                        await Task.Delay(_ao3BackoffMs);
+                        _logger.LogWarning("[Ao3] 429 Too Many Requests — backing off {Ms}ms", _ao3Config.Ao3BackoffMs);
+                        await Task.Delay(_ao3Config.Ao3BackoffMs);
                         return null;
                     }
 
-                    _logger.LogInformation("[AO3-HTTP] Received {Status} after {Elapsed}ms",
+                    _logger.LogInformation("[Ao3-HTTP] Received {Status} after {Elapsed}ms",
                         resp.StatusCode, sw.ElapsedMilliseconds);
 
                     var text = await resp.Content.ReadAsStringAsync(cts.Token);
-                    _logger.LogInformation("[AO3-HTTP] Body read {Bytes} bytes in {Elapsed}ms",
+                    _logger.LogInformation("[Ao3-HTTP] Body read {Bytes} bytes in {Elapsed}ms",
                         text?.Length ?? 0, sw.ElapsedMilliseconds);
 
                     return text;
                 }
                 catch (TaskCanceledException)
                 {
-                    _logger.LogWarning("[AO3] Timeout — backing off {Ms}ms", _ao3BackoffMs);
-                    await Task.Delay(_ao3BackoffMs);
+                    _logger.LogWarning("[Ao3] Timeout — backing off {Ms}ms", _ao3Config.Ao3BackoffMs);
+                    await Task.Delay(_ao3Config.Ao3BackoffMs);
                     return null;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[AO3] Request failed — backing off {Ms}ms", _ao3BackoffMs);
-                    await Task.Delay(_ao3BackoffMs);
+                    _logger.LogError(ex, "[Ao3] Request failed — backing off {Ms}ms", _ao3Config.Ao3BackoffMs);
+                    await Task.Delay(_ao3Config.Ao3BackoffMs);
                     return null;
                 }
             }
             finally
             {
-                _ao3Lock.Release();
+                _Ao3Lock.Release();
             }
         }
     }

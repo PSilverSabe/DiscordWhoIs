@@ -1,4 +1,4 @@
-﻿using DiscordWhoIs.Databases.Models;
+﻿using DiscordWhoIs.Databases.DbModels;
 
 namespace DiscordWhoIs.Databases.Interfaces
 {
@@ -7,7 +7,7 @@ namespace DiscordWhoIs.Databases.Interfaces
         IReadOnlyList<AliasEntry> GetAllAliases();
         bool TryResolve(string alias, out string real);
         bool TryGet(string alias, out AliasEntry? entry);
-        Task AddOrUpdateAsync(string alias, string real, string? description = null);
+        Task AddOrUpdateAsync(string alias, string real);
         Task<bool> RemoveAsync(string alias);
     }
 }

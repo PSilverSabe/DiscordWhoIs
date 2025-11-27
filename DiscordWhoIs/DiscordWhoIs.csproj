@@ -15,6 +15,7 @@
 		<PublishTrimmed>true</PublishTrimmed>
 		<TrimMode>Link</TrimMode>
 		<InvariantGlobalization>false</InvariantGlobalization>
+		<PlatformTarget>AnyCPU</PlatformTarget>
 	</PropertyGroup>
 
 	<ItemGroup>

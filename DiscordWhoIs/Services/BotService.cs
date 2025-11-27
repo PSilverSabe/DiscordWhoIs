@@ -1,8 +1,9 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Registry;
-using System;
+using DiscordWhoIs.Commands.Registry;
+using DiscordWhoIs.Configuration.Models;
+using Microsoft.Extensions.Options;
 using System.Reflection;
 
 namespace DiscordWhoIs.Services
@@ -12,24 +13,24 @@ namespace DiscordWhoIs.Services
         private readonly DiscordSocketClient _client;
         private readonly InteractionService _interactions;
         private readonly CommandRegistry _registry;
-        private readonly IConfiguration _config;
         private readonly ILogger<BotService> _logger;
         private readonly IServiceProvider _services;
+        private readonly DiscordConfiguration _discordConfig;
 
         public BotService(
             DiscordSocketClient client,
             InteractionService interactions,
             CommandRegistry registry,
-            IConfiguration config,
             IServiceProvider services,
-            ILogger<BotService> logger)
+            ILogger<BotService> logger,
+            DiscordConfiguration discordOptions)
         {
             _client = client;
             _interactions = interactions;
             _registry = registry;
-            _config = config;
             _services = services;
             _logger = logger;
+            _discordConfig = discordOptions;
 
             _client.Log += LogAsync;
             _client.Ready += OnReadyAsync;
@@ -39,11 +40,7 @@ namespace DiscordWhoIs.Services
 
         public async Task StartAsync()
         {
-            var token = _config["Discord:Token"];
-            if (string.IsNullOrWhiteSpace(token))
-                throw new Exception("Discord token missing in configuration.");
-
-            await _client.LoginAsync(TokenType.Bot, token);
+            await _client.LoginAsync(TokenType.Bot, _discordConfig.Token);
             await _client.StartAsync();
         }
 
@@ -62,13 +59,23 @@ namespace DiscordWhoIs.Services
             await CleanupDuplicatesAsync();
 
             // Register global or dev guild commands
-            bool devMode = _config.GetValue<bool>("Discord:DevMode");
-            ulong devGuildId = _config.GetValue<ulong>("Discord:DevGuildId");
-
-            if (devMode)
+            if (_discordConfig.DevMode && _discordConfig.DevGuildId.HasValue)
             {
-                _logger.LogInformation("Dev mode enabled — registering commands to guild {GuildId}", devGuildId);
-                await _registry.RegisterGuildAsync(devGuildId);
+                _logger.LogInformation("Dev mode enabled — registering commands to guild {GuildId}", _discordConfig.DevGuildId);
+                _logger.LogInformation("Cleaning up local and global commands before registering to dev guild.");
+                // Remove any existing local commands to avoid conflicts
+                foreach (var dup in await _client.Rest.GetGuildApplicationCommands(_discordConfig.DevGuildId.Value))
+                {
+                    await dup.DeleteAsync();
+                    _logger.LogInformation("Deleted duplicate local command '{Command}' in guild {GuildId}", dup.Name, _discordConfig.DevGuildId);
+                }
+                foreach (var dup in await _client.Rest.GetGlobalApplicationCommands())
+                {
+                    await dup.DeleteAsync();
+                    _logger.LogInformation("Deleted duplicate global command '{Command}' in guild {GuildId}", dup.Name, _discordConfig.DevGuildId);
+                }
+
+                await _registry.RegisterGuildAsync(_discordConfig.DevGuildId.Value);
             }
             else
             {
@@ -123,9 +130,7 @@ namespace DiscordWhoIs.Services
         {
             try
             {
-                // -----------------------
-                // Clean global commands
-                // -----------------------
+                // Clean guild commands
                 var globalCommands = await _client.Rest.GetGlobalApplicationCommands();
 
                 var duplicateGlobals = globalCommands
@@ -140,12 +145,10 @@ namespace DiscordWhoIs.Services
                     _logger.LogInformation("Deleted duplicate global command '{Command}'", dup.Name);
                 }
 
-                if (!duplicateGlobals.Any())
+                if (duplicateGlobals.Count == 0)
                     _logger.LogInformation("No duplicate global commands found.");
 
-                // -----------------------
                 // Clean guild commands
-                // -----------------------
                 foreach (var guild in _client.Guilds)
                 {
                     try
@@ -164,7 +167,7 @@ namespace DiscordWhoIs.Services
                             _logger.LogInformation("Deleted duplicate command '{Command}' in guild {GuildId}", dup.Name, guild.Id);
                         }
 
-                        if (!duplicateGuilds.Any())
+                        if (duplicateGuilds.Count == 0)
                             _logger.LogInformation("No duplicate commands found in guild {GuildId}", guild.Id);
                     }
                     catch (Exception ex)
@@ -204,24 +207,28 @@ namespace DiscordWhoIs.Services
         /// </summary>
         private Task LogAsync(LogMessage msg)
         {
+            const string template = "{Message}";
+
             switch (msg.Severity)
             {
                 case LogSeverity.Critical:
                 case LogSeverity.Error:
-                    _logger.LogError(msg.ToString());
+                    _logger.LogError(template, msg.ToString());
                     break;
                 case LogSeverity.Warning:
-                    _logger.LogWarning(msg.ToString());
+                    _logger.LogWarning(template, msg.ToString());
                     break;
                 case LogSeverity.Info:
-                    _logger.LogInformation(msg.ToString());
+                    _logger.LogInformation(template, msg.ToString());
                     break;
                 case LogSeverity.Verbose:
                 case LogSeverity.Debug:
-                    _logger.LogDebug(msg.ToString());
+                    _logger.LogDebug(template, msg.ToString());
                     break;
             }
+
             return Task.CompletedTask;
         }
+
     }
 }
