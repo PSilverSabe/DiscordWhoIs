@@ -55,6 +55,7 @@ namespace DiscordWhoIs.Databases
             _cts?.Cancel();
             _cts?.Dispose();
             _dbLock.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         public bool TryGetValue(string key, out IEnumerable<FicInfo> value)

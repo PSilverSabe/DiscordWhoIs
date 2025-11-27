@@ -7,24 +7,16 @@ using Microsoft.Extensions.Options;
 
 namespace DiscordWhoIs.Commands
 {
-    public class WhoIsCommandModule : InteractionModuleBase<SocketInteractionContext>
+    public class WhoIsCommandModule(
+        Ao3FicFeedService Ao3,
+        IPersistentCache cache,
+        ILogger<WhoIsCommandModule> logger,
+        CacheConfiguration cacheOptions) : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly Ao3FicFeedService _Ao3;
-        private readonly ILogger<WhoIsCommandModule> _logger;
-        private readonly IPersistentCache _cache;
-        private readonly CacheConfiguration _cacheConfig;
-
-        public WhoIsCommandModule(
-            Ao3FicFeedService Ao3,
-            IPersistentCache cache,
-            ILogger<WhoIsCommandModule> logger,
-            CacheConfiguration cacheOptions)
-        {
-            _Ao3 = Ao3;
-            _logger = logger;
-            _cache = cache;
-            _cacheConfig = cacheOptions;
-        }
+        private readonly Ao3FicFeedService _Ao3 = Ao3;
+        private readonly ILogger<WhoIsCommandModule> _logger = logger;
+        private readonly IPersistentCache _cache = cache;
+        private readonly CacheConfiguration _cacheConfig = cacheOptions;
 
         [SlashCommand("whoisauthor", "Fetch fics for an Ao3 user.")]
         public async Task WhoIsAsync(

@@ -18,10 +18,7 @@ namespace DiscordWhoIs.Configuration
                 throw new InvalidOperationException($"Configuration section '{sectionName}' is missing.");
 
             var instance = section.Get<T>();
-            if (instance == null)
-                throw new InvalidOperationException($"Failed to bind configuration section '{sectionName}' to type {typeof(T).Name}.");
-
-            return instance;
+            return instance ?? throw new InvalidOperationException($"Failed to bind configuration section '{sectionName}' to type {typeof(T).Name}.");
         }
     }
 }

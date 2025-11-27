@@ -3,10 +3,9 @@
     using DiscordWhoIs.Configuration.Models;
     using DiscordWhoIs.Databases.DataModels;
     using DiscordWhoIs.Databases.Interfaces;
+    using DiscordWhoIs.Regexs;
     using HtmlAgilityPack;
-    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -16,8 +15,7 @@
 
     public class Ao3FicFeedService
     {
-        private static readonly Regex PageCountRegex = new(@"page=([0-9]+)", RegexOptions.Compiled);
-        private static readonly object _lastRequestLock = new();
+        private static readonly Lock _lastRequestLock = new();
 
         private readonly HttpClient _http;
         private readonly IPersistentCache _cache;
@@ -94,7 +92,7 @@
         {
             var baseUrl = $"https://archiveofourown.org/users/{user}/works/?fandom_id={_fandomConfig.TargetFandom}";
             var firstPageHtml = await SafeGetStringAo3Async(baseUrl);
-            if (firstPageHtml is null) return Enumerable.Empty<FicInfo>();
+            if (firstPageHtml is null) return [];
 
             var results = new List<FicInfo>(ParseFicsFromHtml(firstPageHtml));
             if (results.Count >= 10) return results.Take(10);
@@ -113,7 +111,7 @@
 
                 if (last != null)
                 {
-                    var m = PageCountRegex.Match(last);
+                    var m = Ao3Regex.PageCountRegex().Match(last);
                     if (m.Success && int.TryParse(m.Groups[1].Value, out var p))
                         totalPages = p;
                 }
@@ -157,39 +155,7 @@
             }
 
             _logger.LogError("[Ao3] Failed to fetch page {Page} after {Max} attempts", page, _ao3Config.MaxRetries);
-            return Enumerable.Empty<FicInfo>();
-        }
-
-
-        private IEnumerable<FicInfo> ParseFicsFromHtml(string? html)
-        {
-            if (html is null) return Enumerable.Empty<FicInfo>();
-
-            var doc = new HtmlDocument();
-            doc.LoadHtml(html);
-
-            var nodes = doc.DocumentNode.SelectNodes("//li[contains(@class,'work')]|//li[contains(@class,'work blurb group')]");
-            if (nodes == null) return Enumerable.Empty<FicInfo>();
-
-            var results = new List<FicInfo>();
-            foreach (var n in nodes)
-            {
-                var titleNode = n.SelectSingleNode(".//h4/a") ?? n.SelectSingleNode(".//h4/span/a");
-                if (titleNode == null) continue;
-
-                var title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
-                var href = titleNode.GetAttributeValue("href", string.Empty);
-                if (string.IsNullOrWhiteSpace(href)) continue;
-
-                var full = href.StartsWith("http") ? href : "https://archiveofourown.org" + href;
-                results.Add(new()
-                {
-                    Title = title,
-                    Url = full
-                });
-            }
-
-            return results;
+            return [];
         }
 
         private async Task<string?> SafeGetStringAo3Async(string url)
@@ -257,6 +223,37 @@
             {
                 _Ao3Lock.Release();
             }
+        }
+
+        private static List<FicInfo> ParseFicsFromHtml(string? html)
+        {
+            if (html is null) return [];
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            var nodes = doc.DocumentNode.SelectNodes("//li[contains(@class,'work')]|//li[contains(@class,'work blurb group')]");
+            if (nodes == null) return [];
+
+            var results = new List<FicInfo>();
+            foreach (var n in nodes)
+            {
+                var titleNode = n.SelectSingleNode(".//h4/a") ?? n.SelectSingleNode(".//h4/span/a");
+                if (titleNode == null) continue;
+
+                var title = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
+                var href = titleNode.GetAttributeValue("href", string.Empty);
+                if (string.IsNullOrWhiteSpace(href)) continue;
+
+                var full = href.StartsWith("http") ? href : "https://archiveofourown.org" + href;
+                results.Add(new()
+                {
+                    Title = title,
+                    Url = full
+                });
+            }
+
+            return results;
         }
     }
 }
