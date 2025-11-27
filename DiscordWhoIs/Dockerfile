@@ -1,13 +1,14 @@
 # ======================
-# BUILD STAGE (Alpine SDK)
+# BUILD STAGE
 # ======================
 FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
 WORKDIR /src
 
-# Dependencies for NativeAOT trimming + musl publish
-RUN apk add --no-cache clang zlib-dev musl-dev icu-dev libgcc libstdc++ bash
+# Build deps
+RUN apk add --no-cache --virtual .build-deps \
+        clang zlib-dev musl-dev icu-dev libgcc libstdc++ bash
 
-# Copy csproj first (layer caching)
+# Restore dependencies
 COPY ["DiscordWhoIs/DiscordWhoIs.csproj", "DiscordWhoIs/"]
 RUN dotnet restore "DiscordWhoIs/DiscordWhoIs.csproj"
 
@@ -15,7 +16,7 @@ RUN dotnet restore "DiscordWhoIs/DiscordWhoIs.csproj"
 COPY ["DiscordWhoIs/", "DiscordWhoIs/"]
 WORKDIR "/src/DiscordWhoIs"
 
-# Publish NativeAOT trimmed binary
+# Publish trimmed NativeAOT binary
 RUN dotnet publish DiscordWhoIs.csproj \
     -c Release \
     -o /app/publish \
@@ -25,22 +26,20 @@ RUN dotnet publish DiscordWhoIs.csproj \
     /p:PublishTrimmed=true \
     /p:TrimMode=Link \
     /p:StripSymbols=true \
-    /p:DebuggerSupport=false && \
-    rm -rf /root/.nuget /src/DiscordWhoIs/bin /src/DiscordWhoIs/obj
+    /p:DebuggerSupport=false \
+ && rm -rf /root/.nuget /src/DiscordWhoIs/bin /src/DiscordWhoIs/obj \
+ && apk del .build-deps
 
 # ======================
-# FINAL RUNTIME IMAGE (Alpine)
+# FINAL IMAGE
 # ======================
-FROM alpine:3.21 AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-alpine AS final
 WORKDIR /app
 
-# Runtime deps for trimmed .NET binary
-RUN apk add --no-cache icu-libs libgcc libstdc++ zlib
+# ICU required for globalization
+RUN apk add --no-cache icu-libs
 
-# Copy self-contained binary
 COPY --from=build /app/publish/ .
 
-# Make executable
-RUN chmod +x DiscordWhoIs
-
 ENTRYPOINT ["./DiscordWhoIs"]
+
