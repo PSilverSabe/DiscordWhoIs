@@ -8,7 +8,7 @@
 
         public int Ao3ConcurrencyLimit { get; set; } = 1;
 
-        public int MaxRetries { get; set; } = 3;
+        public int MaxRetries { get; set; } = 1;
 
         public TimeSpan RetryDelayMilliseconds { get; set; } = TimeSpan.FromMilliseconds(500);
     }
