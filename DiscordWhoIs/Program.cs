@@ -22,7 +22,6 @@ namespace DiscordWhoIs
                 .ConfigureAppConfiguration((context, config) =>
                 {
                     config.AddEnvironmentVariables();
-                    config.AddEnvironmentVariables(prefix: "DW_");
                     config.AddJsonFile("appsettings.json", optional: false);
                     config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
                 })
