@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Configuration.Models;
+using DiscordWhoIs.Databases.DataModels;
 using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Services;
 using Microsoft.Extensions.Options;
@@ -41,44 +42,41 @@ namespace DiscordWhoIs.Commands
                 await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
             }
 
-            await Task.Delay(1000);
-
             var cacheKeyResolved = $"{resolved}";
-            string actionLine;
-            if (_cache.TryGetValue(cacheKeyResolved, out _))
+            var throttleStatus = _Ao3.GetThrottleStatus();
+            var hasCacheValue = _cache.TryGetValue(cacheKeyResolved, out _);
+
+            if (throttleStatus.IsThrottled && !hasCacheValue)
             {
-                actionLine = $"Cache hit for **{resolved}**, retrieving fics";
+                await ModifyOriginalResponseAsync(msg => msg.Content = $"The Ao3 scraper is currently being throttled" +
+                $" (Throttle resets in {throttleStatus.TimeUntilNextAllowed.TotalSeconds:N1} seconds)");
+                return;
+            }
+
+            if (hasCacheValue)
+            {
+                statusLines.Add($"Cache hit for **{resolved}**, retrieving fics");
             }
             else
             {
-                actionLine = $"No cached fics for **{resolved}**, scraping Ao3";
+                statusLines.Add($"No cached fics for **{resolved}**, scraping Ao3");
             }
 
-            statusLines.Add(actionLine);
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
-            await Task.Delay(1000);
-
-            // Animate the last line with dots
-            bool ficsFetched = false;
-            var loadingLineIndex = statusLines.Count - 1;
-            var dots = new[] { "", ".", "..", "..." };
-            var loadingTask = Task.Run(async () =>
+            List<FicInfo> fics;
+            try
             {
-                int i = 0;
-                while (!ficsFetched)
-                {
-                    statusLines[loadingLineIndex] = actionLine + dots[i % dots.Length];
-                    await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
-                    i++;
-                    await Task.Delay(700);
-                }
-            });
+                // Fetch fics
+                fics = (await _Ao3.GetUserFicsAsync(resolved)).ToList();
+            }
+            catch (TimeoutException tex)
+            {
+                _logger.LogWarning(tex, "Timeout while fetching fics for {User}", resolved);
+                await ModifyOriginalResponseAsync(msg => msg.Content = $"Timeout while trying to fetch fics for **{resolved}**. Please try again later.");
+                throw;
+            }
 
-            // Fetch fics
-            var fics = (await _Ao3.GetUserFicsAsync(resolved)).ToList();
-            ficsFetched = true;
-            await loadingTask; // ensure animation stops cleanly
 
             if (fics.Count == 0)
             {
@@ -91,9 +89,6 @@ namespace DiscordWhoIs.Commands
             // Final status line
             statusLines.Add($"Fetched {fics.Count} fics for **{resolved}**.");
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
-
-            // Optional short delay for smoother transition
-            await Task.Delay(500);
 
             // Send embed as a separate normal message
             var displayName = resolved.Equals(requested, StringComparison.OrdinalIgnoreCase)
