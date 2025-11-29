@@ -57,6 +57,9 @@ namespace DiscordWhoIs
                         });
                         //.AddHttpMessageHandler(() => new LoggingHandler());
 
+                    // KeepAlive Service
+                    services.AddHostedService<KeepAliveService>();
+
                     // Environment-based database paths
                     var baseDir = AppContext.BaseDirectory;
 
