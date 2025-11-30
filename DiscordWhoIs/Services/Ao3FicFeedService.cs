@@ -173,6 +173,12 @@
             _logger.LogInformation("[ParseComplete] Parsed {Count} fics from first page for user '{User}'", parsedFirst.Count, user);
 
             var allFics = new List<FicInfo>(parsedFirst);
+
+            if (allFics.Count == 0)
+            {
+                _logger.LogInformation("[ParseError] Parsed item resulted in zero fics, html as follows {html}", firstPageHtml);
+            }
+
             int totalPages = 1;
 
             try
