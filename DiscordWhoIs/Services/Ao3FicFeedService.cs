@@ -126,7 +126,7 @@
             return trimmed;
         }
 
-        public async Task<IEnumerable<FicInfo>> GetUserFicsAsync(string user)
+        public async Task<Ao3ResponseStatus> GetUserFicsAsync(string user)
         {
             var resolvedUser = ResolveAo3Username(user);
 
@@ -137,33 +137,32 @@
             if (_cache.TryGetValue(cacheKeyResolved, out var cached))
             {
                 _logger.LogInformation("Persistent cache hit for {User}", resolvedUser);
-                return cached!;
-            }
 
-            if (!string.Equals(user, resolvedUser, StringComparison.OrdinalIgnoreCase))
-            {
-                var cacheKeyAlias = $"{user}";
-                if (_cache.TryGetValue(cacheKeyAlias, out var aliasCached))
+                return new Ao3ResponseStatus()
                 {
-                    _logger.LogInformation("Persistent cache hit for alias {Alias} (mapped to {Resolved})", user, resolvedUser);
-                    _cache.SetAsync(cacheKeyResolved, aliasCached!, _cacheConfig.ExpirationInHours);
-                    return aliasCached!;
-                }
+                    IsSuccessful = true,
+                    Fics = cached!
+                };
             }
 
             _logger.LogInformation("Persistent cache miss for {User} - scraping Ao3", resolvedUser);
             var results = await ScrapeAllPagesConcurrentAsync(resolvedUser);
 
-            _cache.SetAsync(cacheKeyResolved, results, _cacheConfig.ExpirationInHours);
+            if (results != null && results.Fics.Any())
+            {
+                _cache.SetAsync(cacheKeyResolved, results.Fics, _cacheConfig.ExpirationInHours);
+            }
+
             return results;
         }
         #endregion
 
         #region Scraping & Parsing
-        private async Task<IEnumerable<FicInfo>> ScrapeAllPagesConcurrentAsync(string user)
+        private async Task<Ao3ResponseStatus> ScrapeAllPagesConcurrentAsync(string user)
         {
             _logger.LogInformation("Begin ScrapeAllPagesConcurrentAsync for {User}", user);
 
+            var responseStatus = new Ao3ResponseStatus();
             var baseUrl = $"https://archiveofourown.org/users/{user}/works/?fandom_id={_fandomConfig.TargetFandom}";
             _logger.LogDebug("Scraping base URL: {Url}", baseUrl);
 
@@ -171,7 +170,9 @@
             if (firstPageHtml is null)
             {
                 _logger.LogWarning("First page returned NULL HTML for user {User}", user);
-                return Enumerable.Empty<FicInfo>();
+                responseStatus.Fics = Enumerable.Empty<FicInfo>();
+                responseStatus.IsSuccessful = false;
+                return responseStatus;
             }
 
             if (firstPageHtml.Length < 5000)
@@ -186,19 +187,21 @@
             if (results.Count >= 10)
             {
                 _logger.LogInformation("First page already returned {Count} fics, stopping early", results.Count);
-                return results.Take(10);
+                responseStatus.IsSuccessful = true;
+                responseStatus.Fics = results.Take(10);
+                return responseStatus;
             }
 
             // Determine total pages
             _logger.LogDebug("Determining page count for {User}", user);
             var doc = new HtmlDocument();
-            try 
-            { 
-                doc.LoadHtml(firstPageHtml); 
+            try
+            {
+                doc.LoadHtml(firstPageHtml);
             }
-            catch (Exception ex) 
-            { 
-                _logger.LogError(ex, "HtmlAgilityPack failed to load first page HTML for {User}", user); 
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HtmlAgilityPack failed to load first page HTML for {User}", user);
             }
 
             int totalPages = 1;
@@ -226,7 +229,13 @@
                 }
             }
 
-            if (totalPages <= 1) return results.Take(10);
+            if (totalPages <= 1)
+            {
+                _logger.LogInformation("Only one page of results for {User}", user);
+                responseStatus.IsSuccessful = true;
+                responseStatus.Fics = results.Take(10);
+                return responseStatus;
+            }
 
             var pageNumbers = Enumerable.Range(2, totalPages - 1).ToList();
             _logger.LogInformation("Fetching {Count} more pages concurrently for {User}: {Pages}", pageNumbers.Count, user, string.Join(", ", pageNumbers));
@@ -234,9 +243,9 @@
             var pageTasks = pageNumbers.Select(page => FetchPageAsync(baseUrl, page)).ToList();
 
             IEnumerable<FicInfo>[] pageResults;
-            try 
-            { 
-                pageResults = await Task.WhenAll(pageTasks); 
+            try
+            {
+                pageResults = await Task.WhenAll(pageTasks);
             }
             catch (Exception ex)
             {
@@ -259,7 +268,9 @@
             }
 
             _logger.LogInformation("Scraping complete for {User}. Total collected: {Count}", user, results.Count);
-            return results.Take(10);
+            responseStatus.IsSuccessful = true;
+            responseStatus.Fics = results.Take(10);
+            return responseStatus;
         }
 
         private async Task<IEnumerable<FicInfo>> FetchPageAsync(string baseUrl, int page)
@@ -329,19 +340,26 @@
                         await Task.Delay(_ao3Config.Ao3BackoffMs);
                         return null;
                     }
+                    else if ((int)resp.StatusCode == 443)
+                    {
+                        _logger.LogWarning("[Ao3] 443 Connection Closed for {Url}; backing off {Ms}ms", url, _ao3Config.Ao3BackoffMs);
+                        RecordTimeout(null, url);
+                        await Task.Delay(_ao3Config.Ao3BackoffMs);
+                        return null;
+                    }
 
                     var text = await resp.Content.ReadAsStringAsync(cts.Token);
 
                     // Update last request timestamp AFTER request
                     lock (_lastRequestLock) { _lastAo3RequestUtc = DateTime.UtcNow; }
 
-                    if (string.IsNullOrWhiteSpace(text)) 
-                    { 
-                        RecordTimeout(null, url); 
-                        return null; 
+                    if (string.IsNullOrWhiteSpace(text))
+                    {
+                        RecordTimeout(null, url);
+                        return null;
                     }
 
-                    if (text.Length < 2000) 
+                    if (text.Length < 2000)
                         RecordTimeout(null, url);
 
                     return text;
@@ -361,9 +379,9 @@
             }
             finally
             {
-                try 
-                { 
-                    _Ao3Lock.Release(); 
+                try
+                {
+                    _Ao3Lock.Release();
                 }
                 catch (SemaphoreFullException)
                 {
@@ -377,13 +395,13 @@
             if (html is null) return new List<FicInfo>();
 
             var doc = new HtmlDocument();
-            try 
-            { 
-                doc.LoadHtml(html); 
+            try
+            {
+                doc.LoadHtml(html);
             }
-            catch (Exception ex) 
-            { 
-                _logger.LogError(ex, "HtmlAgilityPack failed to load HTML"); return new List<FicInfo>(); 
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HtmlAgilityPack failed to load HTML"); return new List<FicInfo>();
             }
 
             var nodes = doc.DocumentNode.SelectNodes("//li[contains(@class,'work')]|//li[contains(@class,'work blurb group')]");
@@ -405,9 +423,9 @@
 
                     results.Add(new FicInfo { Title = title, Url = full });
                 }
-                catch (Exception ex) 
-                { 
-                    _logger.LogError(ex, "Exception parsing fic node"); 
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Exception parsing fic node");
                 }
             }
 

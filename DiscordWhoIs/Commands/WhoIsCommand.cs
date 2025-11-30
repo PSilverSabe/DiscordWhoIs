@@ -3,6 +3,7 @@ using Discord.Interactions;
 using DiscordWhoIs.Configuration.Models;
 using DiscordWhoIs.Databases.DataModels;
 using DiscordWhoIs.Databases.Interfaces;
+using DiscordWhoIs.Models;
 using DiscordWhoIs.Services;
 using Microsoft.Extensions.Options;
 
@@ -64,30 +65,36 @@ namespace DiscordWhoIs.Commands
 
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
-            List<FicInfo> fics;
+            Ao3ResponseStatus fics;
             try
             {
                 // Fetch fics
-                fics = (await _Ao3.GetUserFicsAsync(resolved)).ToList();
+                fics = (await _Ao3.GetUserFicsAsync(resolved));
             }
             catch (TimeoutException tex)
             {
                 _logger.LogWarning(tex, "Timeout while fetching fics for {User}", resolved);
                 await ModifyOriginalResponseAsync(msg => msg.Content = $"Timeout while trying to fetch fics for **{resolved}**. Please try again later.");
-                throw;
+                return;
             }
 
 
-            if (fics.Count == 0)
+            if (!fics.Fics.Any() && fics.IsSuccessful)
             {
                 statusLines.Add($"No fics found for **{resolved}**" +
                                 (resolved.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
                 await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
                 return;
             }
+            else if (!fics.Fics.Any() && !fics.IsSuccessful)
+            {
+                statusLines.Add($"Failed to fetch fics for **{resolved}**. Please try again later.");
+                await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
+                return;
+            }
 
             // Final status line
-            statusLines.Add($"Fetched {fics.Count} fics for **{resolved}**.");
+            statusLines.Add($"Fetched {fics.Fics.Count()} fics for **{resolved}**.");
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Send embed as a separate normal message
@@ -101,7 +108,7 @@ namespace DiscordWhoIs.Commands
                 .WithFooter("Source: Archive of Our Own")
                 .WithColor(Color.DarkBlue);
 
-            foreach (var fic in fics.Take(10))
+            foreach (var fic in fics.Fics.Take(10))
             {
                 var truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
                 embed.AddField(truncatedTitle, fic.Url, inline: false);

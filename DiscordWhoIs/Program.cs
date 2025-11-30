@@ -11,7 +11,6 @@ using DiscordWhoIs.Logging.Handler;
 using DiscordWhoIs.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
-using System.Net.Http;
 
 namespace DiscordWhoIs
 {
@@ -64,11 +63,10 @@ namespace DiscordWhoIs
                                 AutomaticDecompression = DecompressionMethods.All,
                                 ConnectTimeout = TimeSpan.FromSeconds(10)
                             };
-                        });
-                        //.AddHttpMessageHandler(() => new LoggingHandler());
+                        }).AddHttpMessageHandler(() => new LoggingHandler());
 
                     // KeepAlive Service
-                    services.AddHostedService<KeepAliveService>();
+                    //services.AddHostedService<KeepAliveService>();
 
                     // Environment-based database paths
                     var baseDir = AppContext.BaseDirectory;
