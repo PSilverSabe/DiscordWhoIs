@@ -11,6 +11,7 @@ using DiscordWhoIs.Logging.Handler;
 using DiscordWhoIs.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Net.Http;
 
 namespace DiscordWhoIs
 {
@@ -43,7 +44,16 @@ namespace DiscordWhoIs
                         {
                             client.Timeout = TimeSpan.FromSeconds(30);
                             client.DefaultRequestHeaders.UserAgent.Clear();
-                            client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0 (+31625469+PSilverSabe@users.noreply.github.com)");
+                            //client.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordWhoIsBot/1.0 (+31625469+PSilverSabe@users.noreply.github.com)");
+                            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0 DiscordWhoIsBot/1.0 (+31625469+PSilverSabe@users.noreply.github.com)");
+                            client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+                            client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
+                            client.DefaultRequestHeaders.Add("Connection", "keep-alive");
+                            client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
+                            client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "navigate");
+                            client.DefaultRequestHeaders.Add("Sec-Fetch-Site", "none");
+                            client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
+                            client.DefaultRequestHeaders.Add("Cache-Control", "max-age=0");
                             client.DefaultRequestHeaders.Accept.ParseAdd("text/html");
                         })
                         .ConfigurePrimaryHttpMessageHandler(() =>
