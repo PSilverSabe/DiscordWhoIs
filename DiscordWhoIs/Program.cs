@@ -34,6 +34,7 @@ namespace DiscordWhoIs
                     var ao3Config = context.Configuration.BindValidated<Ao3Configuration>("Ao3");
                     var aliasConfig = context.Configuration.BindValidated<AliasConfiguration>("Alias");
                     var cacheConfig = context.Configuration.BindValidated<CacheConfiguration>("Cache");
+                    var proxyConfig = context.Configuration.BindValidated<ProxyConfiguration>("Proxy");
 
                     services.AddLogging(b => b.AddConsole());
                     services.AddMemoryCache();
@@ -123,6 +124,7 @@ namespace DiscordWhoIs
                     services.AddSingleton(aliasConfig);
                     services.AddSingleton(cacheConfig);
                     services.AddSingleton(ao3Config);
+                    services.AddSingleton(proxyConfig);
                 });
 
             AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2Support", false);

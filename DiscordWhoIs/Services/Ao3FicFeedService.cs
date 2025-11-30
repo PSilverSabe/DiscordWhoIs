@@ -24,9 +24,6 @@
         private readonly IPersistentCache _cache;
         private readonly ILogger<Ao3FicFeedService> _logger;
         private readonly IAliasStore _aliasStore;
-        private readonly FandomConfiguration _fandomConfig;
-        private readonly CacheConfiguration _cacheConfig;
-        private readonly Ao3Configuration _ao3Config;
         private readonly SemaphoreSlim _Ao3Lock;
 
         private int _timeoutCount = 0;
@@ -37,6 +34,17 @@
         // Playwright
         private readonly IPlaywright _playwright;
         private readonly IBrowser _browser;
+        private static readonly string[] options = new[]
+                {
+                    "--start-maximized",
+                    "--disable-blink-features=AutomationControlled" // reduce bot fingerprint
+                };
+
+        // Config Classes
+        private readonly FandomConfiguration _fandomConfig;
+        private readonly CacheConfiguration _cacheConfig;
+        private readonly Ao3Configuration _ao3Config;
+        private readonly ProxyConfiguration _proxyConfig;
 
         public Ao3FicFeedService(
             IPersistentCache cache,
@@ -44,7 +52,8 @@
             IAliasStore aliasStore,
             FandomConfiguration fandomConfig,
             CacheConfiguration cacheConfig,
-            Ao3Configuration ao3Config)
+            Ao3Configuration ao3Config,
+            ProxyConfiguration proxyConfig)
         {
             _cache = cache;
             _logger = logger;
@@ -52,6 +61,7 @@
             _fandomConfig = fandomConfig;
             _cacheConfig = cacheConfig;
             _ao3Config = ao3Config;
+            _proxyConfig = proxyConfig;
 
             _Ao3Lock = new SemaphoreSlim(_ao3Config.Ao3ConcurrencyLimit, _ao3Config.Ao3ConcurrencyLimit);
 
@@ -63,10 +73,12 @@
             _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = false, // Non-headless
-                Args = new[]
+                Args = options,
+                Proxy = new Proxy
                 {
-                    "--start-maximized",
-                    "--disable-blink-features=AutomationControlled" // reduce bot fingerprint
+                    Server = _proxyConfig.Address,
+                    Username = _proxyConfig.Username,
+                    Password = _proxyConfig.Password
                 }
             }).GetAwaiter().GetResult();
             _logger.LogInformation("[PlaywrightInit] Headless browser launched successfully.");
