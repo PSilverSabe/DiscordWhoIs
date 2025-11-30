@@ -40,12 +40,12 @@ RUN dotnet publish DiscordWhoIs.csproj \
     /p:TrimmerRootDescriptorFiles=TrimmerRoot.xml
 
 # ======================
-# FINAL IMAGE (Debian slim + libicu)
+# FINAL IMAGE
 # ======================
 FROM debian:bookworm-slim AS final
 WORKDIR /app
 
-# Install runtime dependencies including ICU for .NET
+# Runtime dependencies + GUI support for non-headless
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libicu72 \
         ca-certificates \
@@ -55,9 +55,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 \
         libxrender1 libxss1 \
         chromium \
+        xvfb \
+        xauth \
+        dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Playwright and .NET runtime paths
+# Set environment variables
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV PATH="$PATH:/root/.dotnet/tools"
@@ -67,4 +70,5 @@ COPY --from=build /app/publish/ .
 COPY --from=build /ms-playwright /ms-playwright
 COPY --from=build /root/.dotnet/tools /root/.dotnet/tools
 
-ENTRYPOINT ["./DiscordWhoIs"]
+# Use dumb-init for proper signal handling and Xvfb for virtual display
+ENTRYPOINT ["dumb-init", "xvfb-run", "-a", "./DiscordWhoIs"]

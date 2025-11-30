@@ -60,7 +60,15 @@
 
             _logger.LogInformation("[PlaywrightInit] Launching headless browser...");
             _playwright = Playwright.CreateAsync().GetAwaiter().GetResult();
-            _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true }).GetAwaiter().GetResult();
+            _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = false, // Non-headless
+                Args = new[]
+                {
+                    "--start-maximized",
+                    "--disable-blink-features=AutomationControlled" // reduce bot fingerprint
+                }
+            }).GetAwaiter().GetResult();
             _logger.LogInformation("[PlaywrightInit] Headless browser launched successfully.");
         }
 
@@ -288,14 +296,17 @@
                             {
                                 IgnoreHTTPSErrors = true,
                                 BypassCSP = true,
+                                ViewportSize = null, // full screen
+                                JavaScriptEnabled = true, // enable JS
+                                UserAgent = UserAgentProvider.GetRandomUserAgent(), // realistic UA
+                                AcceptDownloads = false,
                                 ExtraHTTPHeaders = new Dictionary<string, string>
                                 {
-                                    ["User-Agent"] = UserAgentProvider.GetRandomUserAgent(),
                                     ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
                                     ["Accept-Language"] = "en-US,en;q=0.5"
                                 },
+                                // enable images, CSS by default
                             });
-
                         var page = await context.NewPageAsync();
 
                         // fake human interaction before navigation
