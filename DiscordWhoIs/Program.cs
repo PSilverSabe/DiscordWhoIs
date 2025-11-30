@@ -10,6 +10,7 @@ using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Logging.Handler;
 using DiscordWhoIs.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Playwright;
 using System.Net;
 
 namespace DiscordWhoIs

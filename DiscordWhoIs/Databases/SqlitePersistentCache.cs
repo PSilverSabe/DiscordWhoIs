@@ -110,16 +110,38 @@ namespace DiscordWhoIs.Databases
                 ExpiresAt = DateTime.UtcNow + absoluteExpirationRelativeToNow
             };
 
+            // update in-memory
             _store[key] = entry;
             _ops.Enqueue((key, entry, false));
-            await using (var context = _dbContextFactory.CreateDbContext())
+
+            await using var context = _dbContextFactory.CreateDbContext();
+
+            var existing = await context.CacheEntries
+                .FirstOrDefaultAsync(e => e.Key == key);
+
+            if (existing is null)
             {
+                // fresh insert
                 context.CacheEntries.Add(entry);
-                context.SaveChanges();
+            }
+            else
+            {
+                // update existing row
+                existing.Json = entry.Json;
+                existing.ExpiresAt = entry.ExpiresAt;
+
+                // mark only changed fields as modified
+                context.Entry(existing).State = EntityState.Modified;
             }
 
-            _logger.LogInformation("Set key '{Key}' in cache with expiration {ExpiresAt}", key, entry.ExpiresAt);
+            await context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Set key '{Key}' in cache with expiration {ExpiresAt}",
+                key, entry.ExpiresAt
+            );
         }
+
 
         public async Task RemoveAsync(string key)
         {

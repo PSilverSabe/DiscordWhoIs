@@ -20,4 +20,13 @@
 	<assembly fullname="Microsoft.EntityFrameworkCore" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Relational" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Sqlite" preserve="all"/>
+	<!-- Preserve Playwright for reflection-->
+	<assembly fullname="Microsoft.Playwright">
+		<type fullname="Microsoft.Playwright.*" preserve="all"/>
+	</assembly>
+	<assembly fullname="System.Text.Json">
+		<type fullname="System.Text.Json.JsonSerializerOptions" preserve="all"/>
+		<type fullname="System.Text.Json.JsonSerializer" preserve="all"/>
+	</assembly>
+
 </linker>

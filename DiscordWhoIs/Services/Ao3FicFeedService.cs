@@ -7,6 +7,7 @@
     using DiscordWhoIs.Regexs;
     using HtmlAgilityPack;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Playwright;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -14,11 +15,11 @@
     using System.Threading;
     using System.Threading.Tasks;
 
-    public class Ao3FicFeedService
+    public class Ao3FicFeedService : IAsyncDisposable
     {
         private static readonly Lock _lastRequestLock = new();
+        private static DateTime _lastAo3RequestUtc = DateTime.MinValue;
 
-        private readonly HttpClient _http;
         private readonly IPersistentCache _cache;
         private readonly ILogger<Ao3FicFeedService> _logger;
         private readonly IAliasStore _aliasStore;
@@ -27,16 +28,16 @@
         private readonly Ao3Configuration _ao3Config;
         private readonly SemaphoreSlim _Ao3Lock;
 
-        private static DateTime _lastAo3RequestUtc = DateTime.MinValue;
-
-        // Timeout tracking
         private int _timeoutCount = 0;
         private DateTime? _lastTimeoutUtc = null;
         private string? _lastTimeoutMessage = null;
         private readonly Lock _timeoutLock = new();
 
+        // Playwright
+        private readonly IPlaywright _playwright;
+        private readonly IBrowser _browser;
+
         public Ao3FicFeedService(
-            IHttpClientFactory httpClientFactory,
             IPersistentCache cache,
             ILogger<Ao3FicFeedService> logger,
             IAliasStore aliasStore,
@@ -44,7 +45,6 @@
             CacheConfiguration cacheConfig,
             Ao3Configuration ao3Config)
         {
-            _http = httpClientFactory.CreateClient("Ao3");
             _cache = cache;
             _logger = logger;
             _aliasStore = aliasStore ?? throw new ArgumentNullException(nameof(aliasStore));
@@ -54,35 +54,41 @@
 
             _Ao3Lock = new SemaphoreSlim(_ao3Config.Ao3ConcurrencyLimit, _ao3Config.Ao3ConcurrencyLimit);
 
-            _logger.LogInformation("Ao3FicFeedService constructed. " +
-                "ConcurrencyLimit={Limit} MinDelayMs={MinDelay} BackoffMs={Backoff} MaxRetries={MaxRetries}",
+            _logger.LogInformation("[ServiceInit] Ao3FicFeedService constructed. ConcurrencyLimit={Limit}, MinDelayMs={MinDelay}, BackoffMs={Backoff}, MaxRetries={MaxRetries}",
                 _ao3Config.Ao3ConcurrencyLimit, _ao3Config.Ao3MinimumDelayMs.TotalMilliseconds, _ao3Config.Ao3BackoffMs, _ao3Config.MaxRetries);
+
+            _logger.LogInformation("[PlaywrightInit] Launching headless browser...");
+            _playwright = Playwright.CreateAsync().GetAwaiter().GetResult();
+            _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = false,
+                Args = ["--disable-blink-features=AutomationControlled"]
+            }).GetAwaiter().GetResult();
+            _logger.LogInformation("[PlaywrightInit] Headless browser launched successfully.");
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _logger.LogInformation("[Dispose] Closing browser and Playwright...");
+            if (_browser != null) await _browser.CloseAsync();
+            _playwright?.Dispose();
+            _logger.LogInformation("[Dispose] Browser closed.");
         }
 
         #region Public Methods
-        /// <summary>
-        /// Returns an object that lets callers know if AO3 requests are currently being throttled.
-        /// </summary>
-        /// <returns></returns>
+
         public Ao3ThrottleStatus GetThrottleStatus()
         {
             DateTime last;
-            lock (_lastRequestLock)
-            {
-                last = _lastAo3RequestUtc;
-            }
+            lock (_lastRequestLock) last = _lastAo3RequestUtc;
 
             var now = DateTime.UtcNow;
             var since = now - last;
-
-            var minDelay = _ao3Config.Ao3MinimumDelayMs;
-            TimeSpan until = TimeSpan.Zero;
-
-            if (since < minDelay)
-                until = minDelay - since;
-
-            // semaphore.CurrentCount shows available concurrency slots
+            var until = since < _ao3Config.Ao3MinimumDelayMs ? _ao3Config.Ao3MinimumDelayMs - since : TimeSpan.Zero;
             int availableSlots = _Ao3Lock.CurrentCount;
+
+            _logger.LogTrace("[ThrottleStatus] SinceLastRequest={ElapsedMs}ms, UntilNextAllowed={UntilMs}ms, AvailableSlots={Slots}",
+                since.TotalMilliseconds, until.TotalMilliseconds, availableSlots);
 
             return new Ao3ThrottleStatus(
                 until > TimeSpan.Zero || availableSlots <= 0,
@@ -92,10 +98,6 @@
             );
         }
 
-        /// <summary>
-        /// Returns an object that provides timeout statistics for AO3 requests.
-        /// </summary>
-        /// <returns></returns>
         public Ao3TimeoutStatus GetTimeoutStatus()
         {
             lock (_timeoutLock)
@@ -104,214 +106,162 @@
                                 _lastTimeoutUtc.HasValue &&
                                 (DateTime.UtcNow - _lastTimeoutUtc.Value) < TimeSpan.FromMinutes(10);
 
-                return new Ao3TimeoutStatus(
-                    _timeoutCount,
-                    _lastTimeoutUtc,
-                    _lastTimeoutMessage,
-                    degraded
-                );
+                _logger.LogTrace("[TimeoutStatus] TimeoutCount={Count}, LastTimeout={Last}, Degraded={Degraded}",
+                    _timeoutCount, _lastTimeoutUtc, degraded);
+
+                return new Ao3TimeoutStatus(_timeoutCount, _lastTimeoutUtc, _lastTimeoutMessage, degraded);
             }
         }
 
-        public string ResolveAo3Username(string input)
+        public async Task<string> ResolveAo3UsernameAsync(string input)
         {
             if (string.IsNullOrWhiteSpace(input)) return input;
-            var trimmed = input.Trim();
-            if (_aliasStore.TryResolve(trimmed, out var real))
-            {
-                _logger.LogDebug("Alias resolved: {Alias} -> {Resolved}", trimmed, real);
-                return real;
-            }
 
-            return trimmed;
+            var trimmed = input.Trim();
+            var resolved = await Task.Run(() => _aliasStore.TryResolve(trimmed, out var real) ? real : trimmed);
+
+            if (!string.Equals(trimmed, resolved, StringComparison.OrdinalIgnoreCase))
+                _logger.LogInformation("[AliasResolved] {Alias} -> {Resolved}", trimmed, resolved);
+
+            return resolved;
         }
 
         public async Task<Ao3ResponseStatus> GetUserFicsAsync(string user)
         {
-            var resolvedUser = ResolveAo3Username(user);
+            var resolvedUser = await ResolveAo3UsernameAsync(user);
 
-            if (!string.Equals(user, resolvedUser, StringComparison.OrdinalIgnoreCase))
-                _logger.LogInformation("Resolved alias {Alias} -> {RealUser}", user, resolvedUser);
-
-            var cacheKeyResolved = $"{resolvedUser}";
-            if (_cache.TryGetValue(cacheKeyResolved, out var cached))
+            var cacheKey = resolvedUser;
+            if (_cache.TryGetValue(cacheKey, out var cached))
             {
-                _logger.LogInformation("Persistent cache hit for {User}", resolvedUser);
-
-                return new Ao3ResponseStatus()
-                {
-                    IsSuccessful = true,
-                    Fics = cached!
-                };
+                _logger.LogInformation("[CacheHit] Returning cached fics for user '{User}' ({Count} fics)", resolvedUser, cached?.Count() ?? 0);
+                return new Ao3ResponseStatus { IsSuccessful = true, Fics = cached! };
             }
 
-            _logger.LogInformation("Persistent cache miss for {User} - scraping Ao3", resolvedUser);
+            _logger.LogInformation("[CacheMiss] No cache for user '{User}', scraping AO3...", resolvedUser);
             var results = await ScrapeAllPagesConcurrentAsync(resolvedUser);
 
-            if (results != null && results.Fics.Any())
+            if (results?.Fics.Any() ?? false)
             {
-                _cache.SetAsync(cacheKeyResolved, results.Fics, _cacheConfig.ExpirationInHours);
+                _cache.SetAsync(cacheKey, results.Fics, _cacheConfig.ExpirationInHours);
+                _logger.LogDebug("[CacheSet] Stored {Count} fics for user '{User}' in persistent cache", results.Fics.Count(), resolvedUser);
             }
 
             return results;
         }
+
         #endregion
 
         #region Scraping & Parsing
+
         private async Task<Ao3ResponseStatus> ScrapeAllPagesConcurrentAsync(string user)
         {
-            _logger.LogInformation("Begin ScrapeAllPagesConcurrentAsync for {User}", user);
+            var scrapeSw = Stopwatch.StartNew();
+            _logger.LogInformation("[ScrapeStart] Begin scraping fics for user '{User}'", user);
 
             var responseStatus = new Ao3ResponseStatus();
             var baseUrl = $"https://archiveofourown.org/users/{user}/works/?fandom_id={_fandomConfig.TargetFandom}";
-            _logger.LogDebug("Scraping base URL: {Url}", baseUrl);
+            _logger.LogDebug("[ScrapeInfo] Base URL: {Url}", baseUrl);
 
-            var firstPageHtml = await SafeGetStringAo3Async(baseUrl);
+            var firstPageHtml = await FetchPageHeadlessAsync(baseUrl);
             if (firstPageHtml is null)
             {
-                _logger.LogWarning("First page returned NULL HTML for user {User}", user);
-                responseStatus.Fics = Enumerable.Empty<FicInfo>();
+                _logger.LogWarning("[ScrapeFail] First page returned null HTML for user '{User}'", user);
                 responseStatus.IsSuccessful = false;
+                responseStatus.Fics = Enumerable.Empty<FicInfo>();
                 return responseStatus;
             }
 
-            if (firstPageHtml.Length < 5000)
-            {
-                _logger.LogWarning("First page HTML size unusually small ({Bytes} bytes) for user {User}", firstPageHtml.Length, user);
-            }
-
+            _logger.LogDebug("[ParseStart] Parsing first page HTML for user '{User}'", user);
             var parsedFirst = ParseFicsFromHtml(firstPageHtml);
-            _logger.LogDebug("Parsed {Count} fics from first page for {User}", parsedFirst.Count, user);
+            _logger.LogInformation("[ParseComplete] Parsed {Count} fics from first page for user '{User}'", parsedFirst.Count, user);
 
-            var results = new List<FicInfo>(parsedFirst);
-            if (results.Count >= 10)
-            {
-                _logger.LogInformation("First page already returned {Count} fics, stopping early", results.Count);
-                responseStatus.IsSuccessful = true;
-                responseStatus.Fics = results.Take(10);
-                return responseStatus;
-            }
+            var allFics = new List<FicInfo>(parsedFirst);
+            int totalPages = 1;
 
-            // Determine total pages
-            _logger.LogDebug("Determining page count for {User}", user);
-            var doc = new HtmlDocument();
             try
             {
+                var doc = new HtmlDocument();
                 doc.LoadHtml(firstPageHtml);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "HtmlAgilityPack failed to load first page HTML for {User}", user);
-            }
-
-            int totalPages = 1;
-            var pagination = doc.DocumentNode.SelectSingleNode("//ol[contains(@class,'pagination')]");
-            if (pagination != null)
-            {
-                try
+                var pagination = doc.DocumentNode.SelectSingleNode("//ol[contains(@class,'pagination')]");
+                if (pagination != null)
                 {
-                    var last = pagination.SelectNodes(".//li/a")
+                    var lastPageHref = pagination.SelectNodes(".//li/a")
                         ?.Select(a => a.GetAttributeValue("href", ""))
                         .LastOrDefault(h => h.Contains("page="));
 
-                    if (!string.IsNullOrEmpty(last))
+                    if (!string.IsNullOrEmpty(lastPageHref))
                     {
-                        var m = Ao3Regex.PageCountRegex().Match(last);
-                        if (m.Success && int.TryParse(m.Groups[1].Value, out var p))
+                        var match = Ao3Regex.PageCountRegex().Match(lastPageHref);
+                        if (match.Success && int.TryParse(match.Groups[1].Value, out var p))
                             totalPages = p;
                         else
-                            _logger.LogWarning("Failed to parse page count from '{Value}' for {User}", last, user);
+                            _logger.LogWarning("[ParseWarning] Failed to parse last page href '{Href}' for user '{User}'", lastPageHref, user);
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Exception while extracting pagination for {User}", user);
-                }
-            }
-
-            if (totalPages <= 1)
-            {
-                _logger.LogInformation("Only one page of results for {User}", user);
-                responseStatus.IsSuccessful = true;
-                responseStatus.Fics = results.Take(10);
-                return responseStatus;
-            }
-
-            var pageNumbers = Enumerable.Range(2, totalPages - 1).ToList();
-            _logger.LogInformation("Fetching {Count} more pages concurrently for {User}: {Pages}", pageNumbers.Count, user, string.Join(", ", pageNumbers));
-
-            var pageTasks = pageNumbers.Select(page => FetchPageAsync(baseUrl, page)).ToList();
-
-            IEnumerable<FicInfo>[] pageResults;
-            try
-            {
-                pageResults = await Task.WhenAll(pageTasks);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected exception while awaiting page fetch tasks for {User}", user);
-                pageResults = Array.Empty<IEnumerable<FicInfo>>();
+                _logger.LogError(ex, "[ParseError] Exception determining total pages for user '{User}'", user);
             }
 
-            for (int i = 0; i < pageResults.Length; i++)
-            {
-                var page = pageNumbers.ElementAtOrDefault(i);
-                var pageFics = pageResults[i] ?? Enumerable.Empty<FicInfo>();
-                _logger.LogDebug("Page {Page} returned {Count} fics for {User}", page, pageFics.Count(), user);
+            _logger.LogInformation("[PaginationInfo] User '{User}' has {TotalPages} pages. Starting concurrent fetch...", user, totalPages);
 
-                results.AddRange(pageFics);
-                if (results.Count >= 10)
+            if (totalPages > 1)
+            {
+                var pageTasks = Enumerable.Range(2, totalPages - 1).Select(pageNum => Task.Run(async () =>
                 {
-                    _logger.LogInformation("Collected {Count} fics (>=10) for {User}, stopping early", results.Count, user);
-                    break;
+                    _logger.LogDebug("[PageFetchStart] Fetching page {Page} for user '{User}'", pageNum, user);
+                    var sw = Stopwatch.StartNew();
+                    var html = await FetchPageHeadlessAsync($"{baseUrl}&page={pageNum}");
+                    sw.Stop();
+
+                    if (html != null)
+                    {
+                        _logger.LogDebug("[PageFetchComplete] Fetched page {Page} for user '{User}' in {ElapsedMs}ms", pageNum, user, sw.ElapsedMilliseconds);
+                        var fics = ParseFicsFromHtml(html);
+                        _logger.LogInformation("[PageParse] Page {Page} returned {Count} fics for user '{User}'", pageNum, fics.Count(), user);
+                        return fics;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("[PageFetchFail] Page {Page} returned null for user '{User}'", pageNum, user);
+                        return Enumerable.Empty<FicInfo>();
+                    }
+                })).ToList();
+
+                var pageResults = await Task.WhenAll(pageTasks);
+
+                foreach (var fics in pageResults)
+                {
+                    allFics.AddRange(fics);
+                    if (allFics.Count >= 10)
+                    {
+                        _logger.LogInformation("[EarlyStop] Collected {Count} fics (>=10) for user '{User}', stopping further page fetches", allFics.Count, user);
+                        break;
+                    }
                 }
             }
 
-            _logger.LogInformation("Scraping complete for {User}. Total collected: {Count}", user, results.Count);
             responseStatus.IsSuccessful = true;
-            responseStatus.Fics = results.Take(10);
+            responseStatus.Fics = allFics.Take(10);
+            scrapeSw.Stop();
+
+            _logger.LogInformation("[ScrapeComplete] Completed scraping user '{User}'. Total collected: {Count}. Time elapsed: {ElapsedMs}ms",
+                user, allFics.Count, scrapeSw.ElapsedMilliseconds);
+
             return responseStatus;
         }
 
-        private async Task<IEnumerable<FicInfo>> FetchPageAsync(string baseUrl, int page)
-        {
-            var url = $"{baseUrl}&page={page}";
-            _logger.LogDebug("Begin FetchPageAsync for page {Page}. URL: {Url}", page, url);
-
-            for (int attempt = 1; attempt <= _ao3Config.MaxRetries; attempt++)
-            {
-                _logger.LogDebug("Fetch attempt {Attempt}/{Max} for page {Page}", attempt, _ao3Config.MaxRetries, page);
-                var html = await SafeGetStringAo3Async(url);
-
-                if (!string.IsNullOrEmpty(html))
-                {
-                    if (html.Length < 3000) RecordTimeout(null, url);
-                    return ParseFicsFromHtml(html);
-                }
-
-                if (attempt < _ao3Config.MaxRetries)
-                {
-                    var backoff = TimeSpan.FromMilliseconds(_ao3Config.Ao3BackoffMs.Milliseconds * Math.Pow(2, attempt - 1));
-                    _logger.LogWarning("[Ao3] Retry {Attempt}/{Max} for page {Page} after {Delay}ms", attempt, _ao3Config.MaxRetries, page, backoff.TotalMilliseconds);
-                    await Task.Delay(backoff);
-                }
-            }
-
-            _logger.LogError("[Ao3] Failed to fetch page {Page} after {Max} attempts (url: {Url})", page, _ao3Config.MaxRetries, url);
-            return Enumerable.Empty<FicInfo>();
-        }
-
-        private async Task<string?> SafeGetStringAo3Async(string url)
+        private async Task<string?> FetchPageHeadlessAsync(string url)
         {
             var waitSw = Stopwatch.StartNew();
-            _logger.LogDebug("[Ao3Lock] Waiting to enter semaphore for URL: {Url}", url);
+            _logger.LogTrace("[SemaphoreWait] Waiting for semaphore for URL: {Url}", url);
             await _Ao3Lock.WaitAsync();
             waitSw.Stop();
-            _logger.LogDebug("[Ao3Lock] Entered semaphore after {WaitMs}ms for URL: {Url}", waitSw.ElapsedMilliseconds, url);
+            _logger.LogTrace("[SemaphoreEntered] Semaphore acquired for URL: {Url} after {ElapsedMs}ms", url, waitSw.ElapsedMilliseconds);
 
             try
             {
-                // Enforce minimum delay
                 int delay;
                 lock (_lastRequestLock)
                 {
@@ -321,87 +271,72 @@
 
                 if (delay > 0)
                 {
-                    _logger.LogInformation("[Ao3] Waiting {Delay}ms to respect minimum delay between requests", delay);
+                    _logger.LogDebug("[Delay] Waiting {DelayMs}ms before fetching URL: {Url}", delay, url);
                     await Task.Delay(delay);
                 }
 
-                var sw = Stopwatch.StartNew();
-                _logger.LogInformation("[Ao3-HTTP] GET {Url}", url);
-
-                try
+                for (int attempt = 1; attempt <= _ao3Config.MaxRetries; attempt++)
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-                    var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
-
-                    if ((int)resp.StatusCode == 429)
+                    _logger.LogDebug("[FetchAttempt] Attempt {Attempt}/{MaxRetries} for URL: {Url}", attempt, _ao3Config.MaxRetries, url);
+                    try
                     {
-                        _logger.LogWarning("[Ao3] 429 Too Many Requests for {Url}; backing off {Ms}ms", url, _ao3Config.Ao3BackoffMs);
-                        RecordTimeout(null, url);
+                        await using var context = await _browser.NewContextAsync();
+                        var page = await context.NewPageAsync();
+                        await page.GotoAsync(url, new PageGotoOptions
+                        {
+                            WaitUntil = WaitUntilState.Load,
+                            Timeout = 20000
+                        });
+
+                        var content = await page.ContentAsync();
+                        lock (_lastRequestLock) { _lastAo3RequestUtc = DateTime.UtcNow; }
+
+                        if (string.IsNullOrWhiteSpace(content) || content.Length < 2000)
+                        {
+                            RecordTimeout(null, url);
+                            _logger.LogWarning("[FetchWarning] Page content too small for URL: {Url}, retrying...", url);
+                            await Task.Delay(_ao3Config.Ao3BackoffMs);
+                            continue;
+                        }
+
+                        _logger.LogDebug("[FetchSuccess] Successfully fetched URL: {Url}, length: {Length}", url, content.Length);
+                        return content;
+                    }
+                    catch (Exception ex)
+                    {
+                        RecordTimeout(ex, url);
+                        _logger.LogError(ex, "[FetchError] Exception during attempt {Attempt}/{MaxRetries} for URL: {Url}, retrying after {BackoffMs}ms",
+                            attempt, _ao3Config.MaxRetries, url, _ao3Config.Ao3BackoffMs.TotalMilliseconds);
                         await Task.Delay(_ao3Config.Ao3BackoffMs);
-                        return null;
                     }
-                    else if ((int)resp.StatusCode == 443)
-                    {
-                        _logger.LogWarning("[Ao3] 443 Connection Closed for {Url}; backing off {Ms}ms", url, _ao3Config.Ao3BackoffMs);
-                        RecordTimeout(null, url);
-                        await Task.Delay(_ao3Config.Ao3BackoffMs);
-                        return null;
-                    }
-
-                    var text = await resp.Content.ReadAsStringAsync(cts.Token);
-
-                    // Update last request timestamp AFTER request
-                    lock (_lastRequestLock) { _lastAo3RequestUtc = DateTime.UtcNow; }
-
-                    if (string.IsNullOrWhiteSpace(text))
-                    {
-                        RecordTimeout(null, url);
-                        return null;
-                    }
-
-                    if (text.Length < 2000)
-                        RecordTimeout(null, url);
-
-                    return text;
                 }
-                catch (TaskCanceledException tce)
-                {
-                    RecordTimeout(tce, url);
-                    await Task.Delay(_ao3Config.Ao3BackoffMs);
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    RecordTimeout(ex, url);
-                    await Task.Delay(_ao3Config.Ao3BackoffMs);
-                    return null;
-                }
+
+                _logger.LogError("[FetchFail] Failed to fetch URL after {MaxAttempts} attempts: {Url}", _ao3Config.MaxRetries, url);
+                return null;
             }
             finally
             {
-                try
-                {
-                    _Ao3Lock.Release();
+                try 
+                { 
+                    _Ao3Lock.Release(); 
                 }
-                catch (SemaphoreFullException)
-                {
-                    _logger.LogWarning("[Ao3Lock] Semaphore already released for URL: {Url}", url);
+                catch (SemaphoreFullException) 
+                { 
+                    _logger.LogWarning("[SemaphoreWarning] Semaphore already released for URL: {Url}", url); 
                 }
             }
         }
 
         private List<FicInfo> ParseFicsFromHtml(string? html)
         {
-            if (html is null) return new List<FicInfo>();
+            if (html == null) return new List<FicInfo>();
 
             var doc = new HtmlDocument();
-            try
-            {
-                doc.LoadHtml(html);
-            }
+            try { doc.LoadHtml(html); }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "HtmlAgilityPack failed to load HTML"); return new List<FicInfo>();
+                _logger.LogError(ex, "[ParseError] Failed to load HTML");
+                return new List<FicInfo>();
             }
 
             var nodes = doc.DocumentNode.SelectNodes("//li[contains(@class,'work')]|//li[contains(@class,'work blurb group')]");
@@ -420,20 +355,22 @@
                     if (string.IsNullOrWhiteSpace(href)) continue;
 
                     var full = href.StartsWith("http") ? href : "https://archiveofourown.org" + href;
-
                     results.Add(new FicInfo { Title = title, Url = full });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Exception parsing fic node");
+                    _logger.LogError(ex, "[ParseError] Exception parsing fic node");
                 }
             }
 
+            _logger.LogDebug("[ParseComplete] Parsed {Count} fics from HTML", results.Count);
             return results;
         }
+
         #endregion
 
         #region Timeout Helper
+
         private void RecordTimeout(Exception? ex, string url)
         {
             lock (_timeoutLock)
@@ -444,9 +381,10 @@
             }
 
             _logger.LogWarning(ex,
-                "[Ao3Timeout] Timeout recorded for {Url}. Total so far: {Count}. Last message: {Msg}",
+                "[Ao3Timeout] Timeout recorded for URL: {Url}. Total: {Count}. Last message: {Msg}",
                 url, _timeoutCount, _lastTimeoutMessage);
         }
+
         #endregion
     }
 }

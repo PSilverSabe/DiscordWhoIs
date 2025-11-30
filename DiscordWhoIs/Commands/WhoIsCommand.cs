@@ -36,7 +36,7 @@ namespace DiscordWhoIs.Commands
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Resolve alias
-            var resolved = _Ao3.ResolveAo3Username(requested);
+            var resolved = await _Ao3.ResolveAo3UsernameAsync(requested);
             if (!resolved.Equals(requested, StringComparison.OrdinalIgnoreCase))
             {
                 statusLines.Add($"Alias **{requested}** resolved to **{resolved}**.");
