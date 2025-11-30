@@ -4,6 +4,7 @@
     using DiscordWhoIs.Databases.DataModels;
     using DiscordWhoIs.Databases.Interfaces;
     using DiscordWhoIs.Models;
+    using DiscordWhoIs.HumanFakers;
     using DiscordWhoIs.Regexs;
     using HtmlAgilityPack;
     using Microsoft.Extensions.Logging;
@@ -59,11 +60,7 @@
 
             _logger.LogInformation("[PlaywrightInit] Launching headless browser...");
             _playwright = Playwright.CreateAsync().GetAwaiter().GetResult();
-            _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-            {
-                Headless = false,
-                Args = ["--disable-blink-features=AutomationControlled"]
-            }).GetAwaiter().GetResult();
+            _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true }).GetAwaiter().GetResult();
             _logger.LogInformation("[PlaywrightInit] Headless browser launched successfully.");
         }
 
@@ -280,15 +277,42 @@
                     _logger.LogDebug("[FetchAttempt] Attempt {Attempt}/{MaxRetries} for URL: {Url}", attempt, _ao3Config.MaxRetries, url);
                     try
                     {
-                        await using var context = await _browser.NewContextAsync();
+                        await using var context = await _browser.NewContextAsync(
+                            new BrowserNewContextOptions
+                            {
+                                IgnoreHTTPSErrors = true,
+                                BypassCSP = true,
+                                ExtraHTTPHeaders = new Dictionary<string, string>
+                                {
+                                    ["User-Agent"] = UserAgentProvider.GetRandomUserAgent(),
+                                    ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                                    ["Accept-Language"] = "en-US,en;q=0.5"
+                                },
+                            });
+
                         var page = await context.NewPageAsync();
+
+                        // fake human interaction before navigation
+                        await FakeHuman.PretendAsync(page);
+
                         await page.GotoAsync(url, new PageGotoOptions
                         {
                             WaitUntil = WaitUntilState.Load,
                             Timeout = 20000
                         });
 
+                        // after the page loads
+                        await FakeHuman.PretendAsync(page);
+
+                        // Random scroll to simulate reading
+                        await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight * Math.random());");
+                        await Task.Delay(new Random().Next(160, 400));
+
+                        // one more human pass before scraping
+                        await FakeHuman.PretendAsync(page);
+
                         var content = await page.ContentAsync();
+
                         lock (_lastRequestLock) { _lastAo3RequestUtc = DateTime.UtcNow; }
 
                         if (string.IsNullOrWhiteSpace(content) || content.Length < 2000)
@@ -316,13 +340,13 @@
             }
             finally
             {
-                try 
-                { 
-                    _Ao3Lock.Release(); 
+                try
+                {
+                    _Ao3Lock.Release();
                 }
-                catch (SemaphoreFullException) 
-                { 
-                    _logger.LogWarning("[SemaphoreWarning] Semaphore already released for URL: {Url}", url); 
+                catch (SemaphoreFullException)
+                {
+                    _logger.LogWarning("[SemaphoreWarning] Semaphore already released for URL: {Url}", url);
                 }
             }
         }
