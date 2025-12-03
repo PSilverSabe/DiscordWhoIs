@@ -67,7 +67,7 @@ namespace DiscordWhoIs
                     // Bind Configurations and Validate
                     var fandomConfig = context.Configuration.BindValidated<FandomConfiguration>("Fandom");
                     var discordConfig = context.Configuration.BindValidated<DiscordConfiguration>("Discord");
-                    var aliasConfig = context.Configuration.BindValidated<BotDbContextConfiguration>("BotDbContext");
+                    var botDbContextConfig = context.Configuration.BindValidated<FileLocationConfiguration>("BotDbContext");
                     var uploadConfig = context.Configuration.BindValidated<UploadConfiguration>("Upload");
 
                     services.AddLogging(b => b.AddConsole());
@@ -78,7 +78,7 @@ namespace DiscordWhoIs
 
                     var botDbContext = context.HostingEnvironment.IsDevelopment()
                         ? Path.Combine(baseDir, "botdbcontext.sqlite")
-                        : aliasConfig.Path ?? Path.Combine(baseDir, "botdbcontext.sqlite");
+                        : Path.Combine(botDbContextConfig.TargetDirectory, botDbContextConfig.FileName) ?? Path.Combine(baseDir, "botdbcontext.sqlite");
 
                     // DbContext factories
                     services.AddDbContextFactory<BotDbContext>(options =>
@@ -116,7 +116,7 @@ namespace DiscordWhoIs
                     // Config Bindings
                     services.AddSingleton(fandomConfig);
                     services.AddSingleton(discordConfig);
-                    services.AddSingleton(aliasConfig);
+                    services.AddSingleton(botDbContextConfig);
                     services.AddSingleton(uploadConfig);
                 });
 

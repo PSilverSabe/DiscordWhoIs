@@ -17,20 +17,20 @@ namespace DiscordWhoIs.Controllers
         {
             if (_env.IsDevelopment())
             {
-                return Path.Combine(AppContext.BaseDirectory, _uploadConfig.UploadDirectory);
+                return Path.Combine(AppContext.BaseDirectory, _uploadConfig.TargetDirectory);
             }
 
-            return Path.Combine(_uploadConfig.UploadDirectory, _uploadConfig.FileName);
+            return Path.Combine(_uploadConfig.TargetDirectory, _uploadConfig.FileName);
         }
 
         private string GetResolvedUploadFilePath()
         {
             if (_env.IsDevelopment())
             {
-                return Path.Combine(AppContext.BaseDirectory, _uploadConfig.UploadDirectory, _uploadConfig.FileName);
+                return Path.Combine(AppContext.BaseDirectory, _uploadConfig.TargetDirectory, _uploadConfig.FileName);
             }
 
-            return Path.Combine(_uploadConfig.UploadDirectory, _uploadConfig.FileName);
+            return Path.Combine(_uploadConfig.TargetDirectory, _uploadConfig.FileName);
         }
 
         [HttpGet("ping")]
