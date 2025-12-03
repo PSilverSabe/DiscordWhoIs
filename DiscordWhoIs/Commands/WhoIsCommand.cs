@@ -1,23 +1,18 @@
 ﻿using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Configuration.Models;
-using DiscordWhoIs.Databases.DataModels;
-using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Models;
 using DiscordWhoIs.Services;
-using Microsoft.Extensions.Options;
 
 namespace DiscordWhoIs.Commands
 {
     public class WhoIsCommandModule(
         Ao3FicFeedService Ao3,
-        IPersistentCache cache,
         ILogger<WhoIsCommandModule> logger,
         CacheConfiguration cacheOptions) : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly Ao3FicFeedService _Ao3 = Ao3;
         private readonly ILogger<WhoIsCommandModule> _logger = logger;
-        private readonly IPersistentCache _cache = cache;
         private readonly CacheConfiguration _cacheConfig = cacheOptions;
 
         [SlashCommand("whoisauthor", "Fetch fics for an Ao3 user.")]
@@ -44,26 +39,6 @@ namespace DiscordWhoIs.Commands
             }
 
             var cacheKeyResolved = $"{resolved}";
-            var throttleStatus = _Ao3.GetThrottleStatus();
-            var hasCacheValue = _cache.TryGetValue(cacheKeyResolved, out _);
-
-            if (throttleStatus.IsThrottled && !hasCacheValue)
-            {
-                await ModifyOriginalResponseAsync(msg => msg.Content = $"The Ao3 scraper is currently being throttled" +
-                $" (Throttle resets in {throttleStatus.TimeUntilNextAllowed.TotalSeconds:N1} seconds)");
-                return;
-            }
-
-            if (hasCacheValue)
-            {
-                statusLines.Add($"Cache hit for **{resolved}**, retrieving fics");
-            }
-            else
-            {
-                statusLines.Add($"No cached fics for **{resolved}**, scraping Ao3");
-            }
-
-            await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             Ao3ResponseStatus fics;
             try
@@ -77,6 +52,17 @@ namespace DiscordWhoIs.Commands
                 await ModifyOriginalResponseAsync(msg => msg.Content = $"Timeout while trying to fetch fics for **{resolved}**. Please try again later.");
                 return;
             }
+
+            if (hasCacheValue)
+            {
+                statusLines.Add($"Cache hit for **{resolved}**, retrieving fics");
+            }
+            else
+            {
+                statusLines.Add($"No cached fics for **{resolved}**, scraping Ao3");
+            }
+
+            await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
 
             if (!fics.Fics.Any() && fics.IsSuccessful)

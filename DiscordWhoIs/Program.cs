@@ -4,13 +4,11 @@ using Discord.WebSocket;
 using DiscordWhoIs.Commands.Registry;
 using DiscordWhoIs.Configuration;
 using DiscordWhoIs.Configuration.Models;
-using DiscordWhoIs.Databases;
 using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.Interfaces;
-using DiscordWhoIs.Logging.Handler;
+using DiscordWhoIs.Databases.Repositories;
 using DiscordWhoIs.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Playwright;
 using System.Net;
 
 namespace DiscordWhoIs
@@ -65,7 +63,7 @@ namespace DiscordWhoIs
                                 AutomaticDecompression = DecompressionMethods.All,
                                 ConnectTimeout = TimeSpan.FromSeconds(10)
                             };
-                        }).AddHttpMessageHandler(() => new LoggingHandler());
+                        });
 
                     // KeepAlive Service
                     //services.AddHostedService<KeepAliveService>();
@@ -82,10 +80,7 @@ namespace DiscordWhoIs
                         : aliasConfig.Path ?? Path.Combine(baseDir, "aliases.sqlite");
 
                     // DbContext factories
-                    services.AddDbContextFactory<CacheDbContext>(options =>
-                        options.UseSqlite($"Data Source={cacheDb}"));
-
-                    services.AddDbContextFactory<AliasDbContext>(options =>
+                    services.AddDbContextFactory<BotDbContext>(options =>
                         options.UseSqlite($"Data Source={aliasDb}"));
 
                     // Ao3 Fic Feed Service
@@ -98,12 +93,11 @@ namespace DiscordWhoIs
                     }));
 
                     // Caches & Stores
-                    services.AddSingleton<SqlitePersistentCache>();
-                    services.AddSingleton<IPersistentCache>(sp => sp.GetRequiredService<SqlitePersistentCache>());
-                    services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SqlitePersistentCache>());
+                    services.AddSingleton<AliasRepository>();
+                    services.AddSingleton<IAliasRepository>(sp => sp.GetRequiredService<AliasRepository>());
 
-                    services.AddSingleton<SqliteAliasStore>();
-                    services.AddSingleton<IAliasStore>(sp => sp.GetRequiredService<SqliteAliasStore>());
+                    services.AddSingleton<FanficRepository>();
+                    services.AddSingleton<IFanficRepository>(sp => sp.GetRequiredService<FanficRepository>());
 
                     // InteractionService
                     services.AddSingleton(sp =>

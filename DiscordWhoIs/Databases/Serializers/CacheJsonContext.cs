@@ -4,8 +4,8 @@
     using System.Text.Json.Serialization;
 
     // For each type you want to serialize
-    [JsonSerializable(typeof(FicInfo), TypeInfoPropertyName = "FicInfo")]
-    [JsonSerializable(typeof(IEnumerable<FicInfo>), TypeInfoPropertyName = "IEnumerableFicInfo")]
+    [JsonSerializable(typeof(FicInfo))]
+    [JsonSerializable(typeof(IEnumerable<FicInfo>))]
     public partial class CacheJsonContext : JsonSerializerContext
     {
     }

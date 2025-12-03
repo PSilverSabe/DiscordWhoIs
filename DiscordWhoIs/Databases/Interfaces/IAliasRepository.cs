@@ -2,12 +2,14 @@
 
 namespace DiscordWhoIs.Databases.Interfaces
 {
-    public interface IAliasStore
+    public interface IAliasRepository: IRepository<Alias>
     {
-        IReadOnlyList<AliasEntry> GetAllAliases();
-        bool TryResolve(string alias, out string real);
-        bool TryGet(string alias, out AliasEntry? entry);
+        Task<bool> TryResolveAsync(string alias, out string real);
+
+        Task<bool> TryGetAsync(string alias, out Alias? entry);
+
         Task AddOrUpdateAsync(string alias, string real);
+
         Task<bool> RemoveAsync(string alias);
     }
 }

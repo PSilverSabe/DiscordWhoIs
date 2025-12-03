@@ -1,14 +1,18 @@
 ﻿using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordWhoIs.Databases.Interfaces;
+using DiscordWhoIs.Databases.Repositories;
 using System.Text;
 
 namespace DiscordWhoIs.Commands
 {
     [Group("alias", "Manage Ao3 aliases")]
-    public class AliasCommandModule(IAliasStore store, ILogger<AliasCommandModule> logger) : InteractionModuleBase<SocketInteractionContext>
+    public class AliasCommandModule(
+        IAliasRepository store, 
+        ILogger<AliasCommandModule> logger) 
+            : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly IAliasStore _store = store;
+        private readonly IAliasRepository _store = store;
         private readonly ILogger<AliasCommandModule> _logger = logger;
 
         // ----- ADD SUBCOMMAND -----
@@ -119,9 +123,8 @@ namespace DiscordWhoIs.Commands
                 return;
             }
 
-            var entries = _store.GetAllAliases()
-                .OrderBy(e => e.Alias)
-                .Select(e => $"{e.Alias} -> {e.Real}")
+            var entries = _store.GetAllAsync()
+                .Result.Select(e => $"{e.AliasUserName} -> {e.RealUserName}")
                 .ToList();
 
             if (entries.Count == 0)
