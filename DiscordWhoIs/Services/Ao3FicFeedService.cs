@@ -3,8 +3,8 @@
     using DiscordWhoIs.Configuration.Models;
     using DiscordWhoIs.Databases.DataModels;
     using DiscordWhoIs.Databases.Interfaces;
-    using DiscordWhoIs.Models;
     using DiscordWhoIs.HumanFakers;
+    using DiscordWhoIs.Models;
     using DiscordWhoIs.Regexs;
     using HtmlAgilityPack;
     using Microsoft.Extensions.Logging;
@@ -14,6 +14,7 @@
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
+    using System.Threading.Channels;
     using System.Threading.Tasks;
 
     public class Ao3FicFeedService : IAsyncDisposable
@@ -21,75 +22,190 @@
         private static readonly Lock _lastRequestLock = new();
         private static DateTime _lastAo3RequestUtc = DateTime.MinValue;
 
-        private readonly IPersistentCache _cache;
         private readonly ILogger<Ao3FicFeedService> _logger;
-        private readonly IAliasStore _aliasStore;
-        private readonly SemaphoreSlim _Ao3Lock;
+        private readonly IAliasRepository _aliasRepository;
+        private readonly IFanficRepository _fanficRepository;
 
-        private int _timeoutCount = 0;
-        private DateTime? _lastTimeoutUtc = null;
-        private string? _lastTimeoutMessage = null;
-        private readonly Lock _timeoutLock = new();
-
-        // Playwright
-        private readonly IPlaywright _playwright;
-        private readonly IBrowser _browser;
-        private static readonly string[] options = new[]
+        // Playwright (lazy-initialized)
+        private IPlaywright? _playwright;
+        private IBrowser? _browser;
+        private static readonly string[] _options = new[]
                 {
+                    "--no-default-browser-check",
+                    "--no-first-run",
+                    "--disable-infobars",
+                    "--password-store=basic",
+                    "--use-mock-keychain",
                     "--start-maximized",
                     "--disable-blink-features=AutomationControlled" // reduce bot fingerprint
                 };
+
+        // Page pool (lazy-created)
+        private Channel<IPage>? _pagePool;
+        private readonly List<IPage> _createdPages = new();
+        private readonly List<IBrowserContext> _createdContexts = new();
+        private int _poolSize = 0;
+        private int _inUseCount = 0;
+        private readonly Lock _poolLock = new();
+
+        // Init guard
+        private readonly SemaphoreSlim _initSemaphore = new(1, 1);
+        private bool _initialized = false;
 
         // Config Classes
         private readonly FandomConfiguration _fandomConfig;
         private readonly CacheConfiguration _cacheConfig;
         private readonly Ao3Configuration _ao3Config;
-        private readonly ProxyConfiguration _proxyConfig;
 
         public Ao3FicFeedService(
-            IPersistentCache cache,
             ILogger<Ao3FicFeedService> logger,
-            IAliasStore aliasStore,
+            IAliasRepository aliasRepository,
+            IFanficRepository fanficRepository,
             FandomConfiguration fandomConfig,
             CacheConfiguration cacheConfig,
-            Ao3Configuration ao3Config,
-            ProxyConfiguration proxyConfig)
+            Ao3Configuration ao3Config)
         {
-            _cache = cache;
             _logger = logger;
-            _aliasStore = aliasStore ?? throw new ArgumentNullException(nameof(aliasStore));
+            _aliasRepository = aliasRepository ?? throw new ArgumentNullException(nameof(aliasRepository));
+            _fanficRepository = fanficRepository ?? throw new ArgumentNullException(nameof(fanficRepository));
             _fandomConfig = fandomConfig;
             _cacheConfig = cacheConfig;
             _ao3Config = ao3Config;
-            _proxyConfig = proxyConfig;
-
-            _Ao3Lock = new SemaphoreSlim(_ao3Config.Ao3ConcurrencyLimit, _ao3Config.Ao3ConcurrencyLimit);
 
             _logger.LogInformation("[ServiceInit] Ao3FicFeedService constructed. ConcurrencyLimit={Limit}, MinDelayMs={MinDelay}, BackoffMs={Backoff}, MaxRetries={MaxRetries}",
                 _ao3Config.Ao3ConcurrencyLimit, _ao3Config.Ao3MinimumDelayMs.TotalMilliseconds, _ao3Config.Ao3BackoffMs, _ao3Config.MaxRetries);
 
-            _logger.LogInformation("[PlaywrightInit] Launching headless browser...");
-            _playwright = Playwright.CreateAsync().GetAwaiter().GetResult();
-            _browser = _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            _logger.LogInformation("[PlaywrightInit] Playwright/browser will be initialized lazily on first scrape.");
+        }
+
+        private async Task EnsureInitializedAsync()
+        {
+            if (_initialized) return;
+
+            await _initSemaphore.WaitAsync().ConfigureAwait(false);
+            try
             {
-                Headless = false, // Non-headless
-                Args = options,
-                Proxy = new Proxy
+                if (_initialized) return;
+
+                _logger.LogInformation("[PlaywrightInit] Launching browser (lazy init)...");
+
+                _playwright = await Playwright.CreateAsync().ConfigureAwait(false);
+
+                _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
                 {
-                    Server = _proxyConfig.Address,
-                    Username = _proxyConfig.Username,
-                    Password = _proxyConfig.Password
+                    Headless = false,
+                    Args = _options.ToArray()
+                }).ConfigureAwait(false);
+
+                // Page pool == concurrency limit
+                _poolSize = Math.Max(1, _ao3Config.Ao3ConcurrencyLimit);
+                _pagePool = Channel.CreateBounded<IPage>(new BoundedChannelOptions(_poolSize)
+                {
+                    FullMode = BoundedChannelFullMode.Wait,
+                    SingleWriter = true,
+                    SingleReader = false
+                });
+
+                // One persistent profile per context
+                for (int i = 0; i < _poolSize; i++)
+                {
+                    var profileDir = Path.Combine("playwright_profiles", $"ao3_profile_{i}");
+                    Directory.CreateDirectory(profileDir);
+
+                    var storageStateFile = Path.Combine(profileDir, "storageState.json");
+                    var identity = UserAgentProvider.GetRandomIdentity();
+
+                    var context = await _browser.NewContextAsync(new BrowserNewContextOptions
+                    {
+                        UserAgent = identity.UserAgent,
+                        Locale = identity.Locale,
+                        TimezoneId = identity.Timezone,
+                        ExtraHTTPHeaders = new Dictionary<string, string>
+                        {
+                            ["Accept-Language"] = identity.AcceptLanguage
+                        },
+                        ScreenSize = new ScreenSize { Width = 1366, Height = 768 },
+                        DeviceScaleFactor = 1,
+                    });
+
+                    var page = await context.NewPageAsync().ConfigureAwait(false);
+
+                    // Save storage state immediately so next boot has it
+                    try
+                    {
+                        await context.StorageStateAsync(new() { Path = storageStateFile }).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[Init] Could not save initial storageState for {Profile}", profileDir);
+                    }
+
+                    _createdContexts.Add(context);
+                    _createdPages.Add(page);
+
+                    await _pagePool.Writer.WriteAsync(page).ConfigureAwait(false);
                 }
-            }).GetAwaiter().GetResult();
-            _logger.LogInformation("[PlaywrightInit] Headless browser launched successfully.");
+
+                _initialized = true;
+                _logger.LogInformation("[PlaywrightInit] Init complete. Pool size = {PoolSize}", _poolSize);
+            }
+            finally
+            {
+                _initSemaphore.Release();
+            }
         }
 
         public async ValueTask DisposeAsync()
         {
-            _logger.LogInformation("[Dispose] Closing browser and Playwright...");
-            if (_browser != null) await _browser.CloseAsync();
+            _logger.LogInformation("[Dispose] Saving storage states and closing resources...");
+
+            // Save storage state for each context
+            for (int i = 0; i < _createdContexts.Count; i++)
+            {
+                var ctx = _createdContexts[i];
+                var profileDir = Path.Combine("playwright_profiles", $"ao3_profile_{i}");
+                var storageFile = Path.Combine(profileDir, "storageState.json");
+
+                try
+                {
+                    Directory.CreateDirectory(profileDir);
+                    await ctx.StorageStateAsync(new() { Path = storageFile }).ConfigureAwait(false);
+                    _logger.LogDebug("[Dispose] Saved storageState for profile {Profile}", profileDir);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[Dispose] Failed to save storageState for context #{Index}", i);
+                }
+            }
+
+            // Close pages
+            foreach (var p in _createdPages)
+            {
+                try
+                {
+                    await p.CloseAsync().ConfigureAwait(false);
+                }
+                catch { }
+            }
+            _createdPages.Clear();
+
+            // Close contexts
+            foreach (var ctx in _createdContexts)
+            {
+                try
+                {
+                    await ctx.CloseAsync().ConfigureAwait(false);
+                }
+                catch { }
+            }
+            _createdContexts.Clear();
+
+            // Close browser
+            if (_browser != null)
+                await _browser.CloseAsync().ConfigureAwait(false);
+
             _playwright?.Dispose();
-            _logger.LogInformation("[Dispose] Browser closed.");
+            _logger.LogInformation("[Dispose] Shutdown complete.");
         }
 
         #region Public Methods
@@ -102,7 +218,12 @@
             var now = DateTime.UtcNow;
             var since = now - last;
             var until = since < _ao3Config.Ao3MinimumDelayMs ? _ao3Config.Ao3MinimumDelayMs - since : TimeSpan.Zero;
-            int availableSlots = _Ao3Lock.CurrentCount;
+            int availableSlots;
+            lock (_poolLock)
+            {
+                availableSlots = _poolSize - _inUseCount;
+                if (availableSlots < 0) availableSlots = 0;
+            }
 
             _logger.LogTrace("[ThrottleStatus] SinceLastRequest={ElapsedMs}ms, UntilNextAllowed={UntilMs}ms, AvailableSlots={Slots}",
                 since.TotalMilliseconds, until.TotalMilliseconds, availableSlots);
@@ -115,55 +236,48 @@
             );
         }
 
-        public Ao3TimeoutStatus GetTimeoutStatus()
-        {
-            lock (_timeoutLock)
-            {
-                bool degraded = _timeoutCount >= 3 &&
-                                _lastTimeoutUtc.HasValue &&
-                                (DateTime.UtcNow - _lastTimeoutUtc.Value) < TimeSpan.FromMinutes(10);
-
-                _logger.LogTrace("[TimeoutStatus] TimeoutCount={Count}, LastTimeout={Last}, Degraded={Degraded}",
-                    _timeoutCount, _lastTimeoutUtc, degraded);
-
-                return new Ao3TimeoutStatus(_timeoutCount, _lastTimeoutUtc, _lastTimeoutMessage, degraded);
-            }
-        }
-
         public async Task<string> ResolveAo3UsernameAsync(string input)
         {
             if (string.IsNullOrWhiteSpace(input)) return input;
 
             var trimmed = input.Trim();
-            var resolved = await Task.Run(() => _aliasStore.TryResolve(trimmed, out var real) ? real : trimmed);
+            var resolved = await _aliasRepository.TryResolveAsync(trimmed, out var real);
 
-            if (!string.Equals(trimmed, resolved, StringComparison.OrdinalIgnoreCase))
+            if (resolved)
+            {
                 _logger.LogInformation("[AliasResolved] {Alias} -> {Resolved}", trimmed, resolved);
+                return real;
+            }
 
-            return resolved;
+            return trimmed;
         }
 
         public async Task<Ao3ResponseStatus> GetUserFicsAsync(string user)
         {
-            var resolvedUser = await ResolveAo3UsernameAsync(user);
+            var resolvedUser = await ResolveAo3UsernameAsync(user).ConfigureAwait(false);
+            var anyFics = await _fanficRepository.GetAllByAuthorAsync(resolvedUser);
 
-            var cacheKey = resolvedUser;
-            if (_cache.TryGetValue(cacheKey, out var cached))
+            if (anyFics.Count != 0)
             {
-                _logger.LogInformation("[CacheHit] Returning cached fics for user '{User}' ({Count} fics)", resolvedUser, cached?.Count() ?? 0);
-                return new Ao3ResponseStatus { IsSuccessful = true, Fics = cached! };
+                _logger.LogInformation("[CacheHit] Returning cached fics for user '{User}' ({Count} fics)", resolvedUser, anyFics?.Count ?? 0);
+                return new Ao3ResponseStatus 
+                { 
+                    IsSuccessful = true, 
+                    Fics = anyFics?.Select(x => new FicInfo() 
+                    {
+                        Title = x.Title,
+                        Url = x.Link
+                    })!
+                };
             }
 
-            _logger.LogInformation("[CacheMiss] No cache for user '{User}', scraping AO3...", resolvedUser);
-            var results = await ScrapeAllPagesConcurrentAsync(resolvedUser);
+            _logger.LogInformation("[CacheMiss] No cache for user '{User}', The user is either new or incorrect.", resolvedUser);
 
-            if (results?.Fics.Any() ?? false)
+            return new Ao3ResponseStatus()
             {
-                _cache.SetAsync(cacheKey, results.Fics, _cacheConfig.ExpirationInHours);
-                _logger.LogDebug("[CacheSet] Stored {Count} fics for user '{User}' in persistent cache", results.Fics.Count(), resolvedUser);
-            }
-
-            return results;
+                IsSuccessful = false,
+                Fics = Enumerable.Empty<FicInfo>()
+            };
         }
 
         #endregion
@@ -172,6 +286,8 @@
 
         private async Task<Ao3ResponseStatus> ScrapeAllPagesConcurrentAsync(string user)
         {
+            await EnsureInitializedAsync().ConfigureAwait(false);
+
             var scrapeSw = Stopwatch.StartNew();
             _logger.LogInformation("[ScrapeStart] Begin scraping fics for user '{User}'", user);
 
@@ -179,7 +295,7 @@
             var baseUrl = $"https://archiveofourown.org/users/{user}/works/?fandom_id={_fandomConfig.TargetFandom}";
             _logger.LogDebug("[ScrapeInfo] Base URL: {Url}", baseUrl);
 
-            var firstPageHtml = await FetchPageHeadlessAsync(baseUrl);
+            var firstPageHtml = await FetchPageHeadlessAsync(baseUrl).ConfigureAwait(false);
             if (firstPageHtml is null)
             {
                 _logger.LogWarning("[ScrapeFail] First page returned null HTML for user '{User}'", user);
@@ -231,28 +347,16 @@
 
             if (totalPages > 1)
             {
-                var pageTasks = Enumerable.Range(2, totalPages - 1).Select(pageNum => Task.Run(async () =>
+                var pageNums = Enumerable.Range(2, totalPages - 1).ToList();
+                var tasks = new List<Task<IEnumerable<FicInfo>>>();
+
+                // start tasks up to pool size (pool bounds concurrency)
+                foreach (var pageNum in pageNums)
                 {
-                    _logger.LogDebug("[PageFetchStart] Fetching page {Page} for user '{User}'", pageNum, user);
-                    var sw = Stopwatch.StartNew();
-                    var html = await FetchPageHeadlessAsync($"{baseUrl}&page={pageNum}");
-                    sw.Stop();
+                    tasks.Add(FetchAndParsePageAsync($"{baseUrl}&page={pageNum}", pageNum, user));
+                }
 
-                    if (html != null)
-                    {
-                        _logger.LogDebug("[PageFetchComplete] Fetched page {Page} for user '{User}' in {ElapsedMs}ms", pageNum, user, sw.ElapsedMilliseconds);
-                        var fics = ParseFicsFromHtml(html);
-                        _logger.LogInformation("[PageParse] Page {Page} returned {Count} fics for user '{User}'", pageNum, fics.Count(), user);
-                        return fics;
-                    }
-                    else
-                    {
-                        _logger.LogWarning("[PageFetchFail] Page {Page} returned null for user '{User}'", pageNum, user);
-                        return Enumerable.Empty<FicInfo>();
-                    }
-                })).ToList();
-
-                var pageResults = await Task.WhenAll(pageTasks);
+                var pageResults = await Task.WhenAll(tasks).ConfigureAwait(false);
 
                 foreach (var fics in pageResults)
                 {
@@ -275,16 +379,36 @@
             return responseStatus;
         }
 
+        private async Task<IEnumerable<FicInfo>> FetchAndParsePageAsync(string url, int pageNum, string user)
+        {
+            _logger.LogDebug("[PageFetchStart] Fetching page {Page} for user '{User}'", pageNum, user);
+            var sw = Stopwatch.StartNew();
+            var html = await FetchPageHeadlessAsync(url).ConfigureAwait(false);
+            sw.Stop();
+
+            if (html != null)
+            {
+                _logger.LogDebug("[PageFetchComplete] Fetched page {Page} for user '{User}' in {ElapsedMs}ms", pageNum, user, sw.ElapsedMilliseconds);
+                var fics = ParseFicsFromHtml(html);
+                _logger.LogInformation("[PageParse] Page {Page} returned {Count} fics for user '{User}'", pageNum, fics.Count(), user);
+                return fics;
+            }
+            else
+            {
+                _logger.LogWarning("[PageFetchFail] Page {Page} returned null for user '{User}'", pageNum, user);
+                return Enumerable.Empty<FicInfo>();
+            }
+        }
+
         private async Task<string?> FetchPageHeadlessAsync(string url)
         {
-            var waitSw = Stopwatch.StartNew();
-            _logger.LogTrace("[SemaphoreWait] Waiting for semaphore for URL: {Url}", url);
-            await _Ao3Lock.WaitAsync();
-            waitSw.Stop();
-            _logger.LogTrace("[SemaphoreEntered] Semaphore acquired for URL: {Url} after {ElapsedMs}ms", url, waitSw.ElapsedMilliseconds);
+            await EnsureInitializedAsync().ConfigureAwait(false);
+
+            IPage? page = null;
 
             try
             {
+                // AO3 throttle delay
                 int delay;
                 lock (_lastRequestLock)
                 {
@@ -294,88 +418,101 @@
 
                 if (delay > 0)
                 {
-                    _logger.LogDebug("[Delay] Waiting {DelayMs}ms before fetching URL: {Url}", delay, url);
-                    await Task.Delay(delay);
+                    _logger.LogDebug("[Delay] {Delay}ms before requesting {Url}", delay, url);
+                    await Task.Delay(delay).ConfigureAwait(false);
                 }
+
+                page = await AcquirePageAsync().ConfigureAwait(false);
 
                 for (int attempt = 1; attempt <= _ao3Config.MaxRetries; attempt++)
                 {
-                    _logger.LogDebug("[FetchAttempt] Attempt {Attempt}/{MaxRetries} for URL: {Url}", attempt, _ao3Config.MaxRetries, url);
                     try
                     {
-                        await using var context = await _browser.NewContextAsync(
-                            new BrowserNewContextOptions
-                            {
-                                IgnoreHTTPSErrors = true,
-                                BypassCSP = true,
-                                ViewportSize = null, // full screen
-                                JavaScriptEnabled = true, // enable JS
-                                UserAgent = UserAgentProvider.GetRandomUserAgent(), // realistic UA
-                                AcceptDownloads = false,
-                                ExtraHTTPHeaders = new Dictionary<string, string>
-                                {
-                                    ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                                    ["Accept-Language"] = "en-US,en;q=0.5"
-                                },
-                                // enable images, CSS by default
-                            });
-                        var page = await context.NewPageAsync();
+                        // Slight human-like delay before navigation
+                        await Task.Delay(Random.Shared.Next(60, 250)).ConfigureAwait(false);
 
-                        // fake human interaction before navigation
-                        await FakeHuman.PretendAsync(page);
+                        await FakeHuman.PretendAsync(page).ConfigureAwait(false);
 
-                        await page.GotoAsync(url, new PageGotoOptions
+                        await page.GotoAsync(url, new()
                         {
                             WaitUntil = WaitUntilState.Load,
                             Timeout = 20000
-                        });
+                        }).ConfigureAwait(false);
 
-                        // after the page loads
-                        await FakeHuman.PretendAsync(page);
+                        await FakeHuman.PretendAsync(page).ConfigureAwait(false);
 
-                        // Random scroll to simulate reading
-                        await page.EvaluateAsync("window.scrollTo(0, document.body.scrollHeight * Math.random());");
-                        await Task.Delay(new Random().Next(160, 400));
+                        var content = await page.ContentAsync().ConfigureAwait(false);
 
-                        // one more human pass before scraping
-                        await FakeHuman.PretendAsync(page);
-
-                        var content = await page.ContentAsync();
-
-                        lock (_lastRequestLock) { _lastAo3RequestUtc = DateTime.UtcNow; }
+                        lock (_lastRequestLock)
+                        {
+                            _lastAo3RequestUtc = DateTime.UtcNow;
+                        }
 
                         if (string.IsNullOrWhiteSpace(content) || content.Length < 2000)
                         {
-                            RecordTimeout(null, url);
-                            _logger.LogWarning("[FetchWarning] Page content too small for URL: {Url}, retrying...", url);
-                            await Task.Delay(_ao3Config.Ao3BackoffMs);
+                            _logger.LogWarning("[Fetch] Content too small on attempt {A} for {Url}", attempt, url);
+                            await Task.Delay(_ao3Config.Ao3BackoffMs).ConfigureAwait(false);
                             continue;
                         }
 
-                        _logger.LogDebug("[FetchSuccess] Successfully fetched URL: {Url}, length: {Length}", url, content.Length);
                         return content;
                     }
                     catch (Exception ex)
                     {
-                        RecordTimeout(ex, url);
-                        _logger.LogError(ex, "[FetchError] Exception during attempt {Attempt}/{MaxRetries} for URL: {Url}, retrying after {BackoffMs}ms",
-                            attempt, _ao3Config.MaxRetries, url, _ao3Config.Ao3BackoffMs.TotalMilliseconds);
-                        await Task.Delay(_ao3Config.Ao3BackoffMs);
+                        _logger.LogWarning(ex, "[FetchError] Attempt {A}/{Max} failed for {Url}", attempt, _ao3Config.MaxRetries, url);
+
+                        await Task.Delay(_ao3Config.Ao3BackoffMs).ConfigureAwait(false);
                     }
                 }
 
-                _logger.LogError("[FetchFail] Failed to fetch URL after {MaxAttempts} attempts: {Url}", _ao3Config.MaxRetries, url);
+                _logger.LogError("[FetchFail] All retries failed for {Url}", url);
                 return null;
             }
             finally
             {
-                try
+                if (page != null)
                 {
-                    _Ao3Lock.Release();
+                    try
+                    {
+                        // Cleanup: reset page before returning to pool
+                        if (page.Url != "about:blank")
+                            await page.GotoAsync("about:blank", new() { Timeout = 5000 }).ConfigureAwait(false);
+                    }
+                    catch { /* ignore */ }
+
+                    await ReleasePageAsync(page).ConfigureAwait(false);
                 }
-                catch (SemaphoreFullException)
+            }
+        }
+
+        private async Task<IPage> AcquirePageAsync()
+        {
+            var p = await _pagePool!.Reader.ReadAsync().ConfigureAwait(false);
+            lock (_poolLock)
+            {
+                _inUseCount++;
+            }
+
+            return p;
+        }
+
+        private async Task ReleasePageAsync(IPage page)
+        {
+            // return page to pool (best-effort)
+            try
+            {
+                await _pagePool!.Writer.WriteAsync(page).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[PoolWarning] Failed to return page to pool; attempting to close.");
+                try { await page.CloseAsync().ConfigureAwait(false); } catch { }
+            }
+            finally
+            {
+                lock (_poolLock)
                 {
-                    _logger.LogWarning("[SemaphoreWarning] Semaphore already released for URL: {Url}", url);
+                    _inUseCount = Math.Max(0, _inUseCount - 1);
                 }
             }
         }
@@ -418,24 +555,6 @@
 
             _logger.LogDebug("[ParseComplete] Parsed {Count} fics from HTML", results.Count);
             return results;
-        }
-
-        #endregion
-
-        #region Timeout Helper
-
-        private void RecordTimeout(Exception? ex, string url)
-        {
-            lock (_timeoutLock)
-            {
-                _timeoutCount++;
-                _lastTimeoutUtc = DateTime.UtcNow;
-                _lastTimeoutMessage = ex?.Message ?? "Timeout / empty response";
-            }
-
-            _logger.LogWarning(ex,
-                "[Ao3Timeout] Timeout recorded for URL: {Url}. Total: {Count}. Last message: {Msg}",
-                url, _timeoutCount, _lastTimeoutMessage);
         }
 
         #endregion
