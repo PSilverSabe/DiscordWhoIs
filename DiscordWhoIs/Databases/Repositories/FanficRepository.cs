@@ -84,7 +84,21 @@ namespace DiscordWhoIs.Databases.Repositories
             }
 
             using var context = _dbContextFactory.CreateDbContext();
-            context.Fanfics.AddRange(parsedContent);
+            var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Title, StringComparer.OrdinalIgnoreCase);
+            foreach (var fanfic in parsedContent)
+            {
+                if (existingFanfics.TryGetValue(fanfic.Title, out Fanfic? existingFanfic))
+                {
+                    fanfic.Id = existingFanfic.Id; // Preserve the ID for update
+                    context.Entry(existingFanfic).CurrentValues.SetValues(fanfic);
+                }
+                else
+                {
+                    // New entry
+                    context.Fanfics.Add(fanfic);
+                }
+            }
+
             context.SaveChanges();
             SetLocalStore(context);
             context.Dispose();

@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using DiscordWhoIs.Commands.Registry;
 using DiscordWhoIs.Configuration;
 using DiscordWhoIs.Configuration.Models;
+using DiscordWhoIs.Controllers;
 using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.Interfaces;
 using DiscordWhoIs.Databases.Repositories;
@@ -24,18 +25,53 @@ namespace DiscordWhoIs
                     config.AddJsonFile("appsettings.json", optional: false);
                     config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
                 })
+                .ConfigureWebHostDefaults(web =>
+                {
+                    web.UseKestrel()
+                       .UseUrls("http://0.0.0.0:5000")
+                       .Configure((context, app) =>
+                       {
+                           var uploadConfig = context.Configuration.BindValidated<UploadConfiguration>("Upload");
+
+                           // Authentication Middleware
+                           app.Use(async (http, next) =>
+                           {
+                               if (http.Request.Path.StartsWithSegments("/api"))
+                               {
+                                   if (!http.Request.Headers.TryGetValue("X-Api-Key", out var apiKey) ||
+                                       apiKey != uploadConfig.ApiKey)
+                                   {
+                                       http.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                                       await http.Response.WriteAsync("Unauthorized");
+                                       return;
+                                   }
+                               }
+
+                               await next();
+                           });
+
+                           var env = app.ApplicationServices.GetRequiredService<IHostEnvironment>();
+
+                           if (env.IsDevelopment())
+                               app.UseDeveloperExceptionPage();
+
+                           app.UseRouting();
+                           app.UseEndpoints(endpoints =>
+                           {
+                               endpoints.MapControllers();
+                           });
+                       });
+                })
                 .ConfigureServices((context, services) =>
                 {
                     // Bind Configurations and Validate
                     var fandomConfig = context.Configuration.BindValidated<FandomConfiguration>("Fandom");
                     var discordConfig = context.Configuration.BindValidated<DiscordConfiguration>("Discord");
                     var aliasConfig = context.Configuration.BindValidated<BotDbContextConfiguration>("BotDbContext");
+                    var uploadConfig = context.Configuration.BindValidated<UploadConfiguration>("Upload");
 
                     services.AddLogging(b => b.AddConsole());
                     services.AddMemoryCache();
-
-                    // KeepAlive Service
-                    //services.AddHostedService<KeepAliveService>();
 
                     // Environment-based database paths
                     var baseDir = AppContext.BaseDirectory;
@@ -74,10 +110,14 @@ namespace DiscordWhoIs
                     // Bot Service
                     services.AddSingleton<BotService>();
 
+                    // Controllers
+                    services.AddControllers();
+
                     // Config Bindings
                     services.AddSingleton(fandomConfig);
                     services.AddSingleton(discordConfig);
                     services.AddSingleton(aliasConfig);
+                    services.AddSingleton(uploadConfig);
                 });
 
             var host = builder.Build();
