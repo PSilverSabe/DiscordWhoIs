@@ -3,7 +3,6 @@
 		<!-- Preserve all slash command modules -->
 		<type fullname="DiscordWhoIs.Commands.WhoIsCommandModule" preserve="all"/>
 		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all"/>
-		<type fullname="DiscordWhoIs.Commands.ClearCacheCommandModule" preserve="all"/>
 
 		<!-- Preserve other InteractionModuleBase types if you add more -->
 		<!--<type fullname="DiscordWhoIs.Commands.Modules.OtherCommandModule" preserve="all"/>-->
@@ -20,13 +19,5 @@
 	<assembly fullname="Microsoft.EntityFrameworkCore" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Relational" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Sqlite" preserve="all"/>
-	<!-- Preserve Playwright for reflection-->
-	<assembly fullname="Microsoft.Playwright">
-		<type fullname="Microsoft.Playwright.*" preserve="all"/>
-	</assembly>
-	<assembly fullname="System.Text.Json">
-		<type fullname="System.Text.Json.JsonSerializerOptions" preserve="all"/>
-		<type fullname="System.Text.Json.JsonSerializer" preserve="all"/>
-	</assembly>
 
 </linker>

@@ -2,7 +2,7 @@
 
 namespace DiscordWhoIs.Configuration.Models
 {
-    public class AliasConfiguration
+    public class BotDbContextConfiguration
     {
         [Required]
         public required string Path { get; set; }

@@ -1,19 +1,18 @@
 ﻿using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Configuration.Models;
-using DiscordWhoIs.Models;
-using DiscordWhoIs.Services;
+using DiscordWhoIs.Databases.Interfaces;
 
 namespace DiscordWhoIs.Commands
 {
     public class WhoIsCommandModule(
-        Ao3FicFeedService Ao3,
-        ILogger<WhoIsCommandModule> logger,
-        CacheConfiguration cacheOptions) : InteractionModuleBase<SocketInteractionContext>
+        IFanficRepository fanficRepository,
+        IAliasRepository aliasRepository,
+        ILogger<WhoIsCommandModule> logger) : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly Ao3FicFeedService _Ao3 = Ao3;
+        private readonly IFanficRepository _fanfic = fanficRepository;
+        private readonly IAliasRepository _alias = aliasRepository;
         private readonly ILogger<WhoIsCommandModule> _logger = logger;
-        private readonly CacheConfiguration _cacheConfig = cacheOptions;
 
         [SlashCommand("whoisauthor", "Fetch fics for an Ao3 user.")]
         public async Task WhoIsAsync(
@@ -27,77 +26,45 @@ namespace DiscordWhoIs.Commands
 
             await DeferAsync(ephemeral: true);
 
-            var statusLines = new List<string> { $"Resolving alias and checking cache for **{requested}**..." };
+            var statusLines = new List<string> { $"Resolving alias and checking database for **{requested}**..." };
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Resolve alias
-            var resolved = await _Ao3.ResolveAo3UsernameAsync(requested);
-            if (!resolved.Equals(requested, StringComparison.OrdinalIgnoreCase))
+            var hasFoundAlias = await _alias.TryResolveAsync(requested, out var real);
+            if (hasFoundAlias)
             {
-                statusLines.Add($"Alias **{requested}** resolved to **{resolved}**.");
+                statusLines.Add($"Alias **{requested}** resolved to **{real}**.");
                 await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
             }
 
-            var cacheKeyResolved = $"{resolved}";
+            // Fetch fics
+            var fics = await _fanfic.GetAllByAuthorAsync(real);
 
-            Ao3ResponseStatus fics;
-            try
+            if (!fics.Any())
             {
-                // Fetch fics
-                fics = (await _Ao3.GetUserFicsAsync(resolved));
-            }
-            catch (TimeoutException tex)
-            {
-                _logger.LogWarning(tex, "Timeout while fetching fics for {User}", resolved);
-                await ModifyOriginalResponseAsync(msg => msg.Content = $"Timeout while trying to fetch fics for **{resolved}**. Please try again later.");
-                return;
-            }
-
-            if (hasCacheValue)
-            {
-                statusLines.Add($"Cache hit for **{resolved}**, retrieving fics");
-            }
-            else
-            {
-                statusLines.Add($"No cached fics for **{resolved}**, scraping Ao3");
-            }
-
-            await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
-
-
-            if (!fics.Fics.Any() && fics.IsSuccessful)
-            {
-                statusLines.Add($"No fics found for **{resolved}**" +
-                                (resolved.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
-                await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
-                return;
-            }
-            else if (!fics.Fics.Any() && !fics.IsSuccessful)
-            {
-                statusLines.Add($"Failed to fetch fics for **{resolved}**. Please try again later.");
+                statusLines.Add($"No fics found for **{real}**. Please wait for the daily scrape update." +
+                                (real.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
                 await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
                 return;
             }
 
             // Final status line
-            statusLines.Add($"Fetched {fics.Fics.Count()} fics for **{resolved}**.");
+            statusLines.Add($"Fetched {fics.Count} fics for **{real}**.");
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Send embed as a separate normal message
-            var displayName = resolved.Equals(requested, StringComparison.OrdinalIgnoreCase)
-                ? resolved
-                : $"{resolved} (alias: {requested})";
+            var displayName = hasFoundAlias ? $"{requested} (alias: {real})" : real ;
 
             var embed = new EmbedBuilder()
                 .WithTitle($"Recent works for {displayName}")
-                .WithDescription($"Showing up to 10 works. Cached for {_cacheConfig.ExpirationInHours.TotalHours    } hours.")
+                .WithDescription($"Showing up to 10 works.")
                 .WithFooter("Source: Archive of Our Own")
                 .WithColor(Color.DarkBlue);
 
-            foreach (var fic in fics.Fics.Take(10))
+            foreach (var fic in fics.Take(10))
             {
                 var truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
-                embed.AddField(truncatedTitle, fic.Url, inline: false);
+                embed.AddField(truncatedTitle, fic.Title, inline: false);
             }
 
             await Context.Channel.SendMessageAsync(embed: embed.Build());

@@ -1,74 +1,45 @@
 # ======================
 # BUILD STAGE
 # ======================
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
 WORKDIR /src
 
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV PATH="$PATH:/root/.dotnet/tools"
+# Build deps
+RUN apk add --no-cache --virtual .build-deps \
+        clang zlib-dev musl-dev icu-dev libgcc libstdc++ bash
 
-# Build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        clang zlib1g-dev libicu-dev libssl-dev curl nodejs npm git bash \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy project and restore
+# Restore dependencies
 COPY ["DiscordWhoIs/DiscordWhoIs.csproj", "DiscordWhoIs/"]
 RUN dotnet restore "DiscordWhoIs/DiscordWhoIs.csproj"
 
-# Copy source and build
+# Copy source
 COPY ["DiscordWhoIs/", "DiscordWhoIs/"]
 WORKDIR "/src/DiscordWhoIs"
-RUN dotnet build -c Release
 
-# Install Playwright CLI and only Chromium
-RUN dotnet tool install --global Microsoft.Playwright.CLI \
-    && playwright install chromium \
-    && rm -rf /ms-playwright/firefox /ms-playwright/webkit
-
-# Publish app (self-contained, trimmed)
+# Publish trimmed NativeAOT binary
 RUN dotnet publish DiscordWhoIs.csproj \
     -c Release \
     -o /app/publish \
-    -r linux-x64 \
+    -r linux-musl-x64 \
     /p:PublishSingleFile=true \
     /p:SelfContained=true \
-    /p:PublishTrimmed=false \
+    /p:PublishTrimmed=true \
     /p:TrimMode=Link \
     /p:StripSymbols=true \
     /p:DebuggerSupport=false \
-    /p:TrimmerRootDescriptorFiles=TrimmerRoot.xml
+ && rm -rf /root/.nuget /src/DiscordWhoIs/bin /src/DiscordWhoIs/obj \
+ && apk del .build-deps
 
 # ======================
 # FINAL IMAGE
 # ======================
-FROM debian:bookworm-slim AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-alpine AS final
 WORKDIR /app
 
-# Runtime dependencies + GUI support for non-headless
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libicu72 \
-        ca-certificates \
-        fonts-liberation \
-        libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 \
-        libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 \
-        libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 \
-        libxrender1 libxss1 \
-        chromium \
-        xvfb \
-        xauth \
-        dumb-init \
-    && rm -rf /var/lib/apt/lists/*
+# ICU required for globalization
+RUN apk add --no-cache icu-libs
 
-# Set environment variables
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV DOTNET_RUNNING_IN_CONTAINER=true
-ENV PATH="$PATH:/root/.dotnet/tools"
-
-# Copy published app and Playwright Chromium/CLI
 COPY --from=build /app/publish/ .
-COPY --from=build /ms-playwright /ms-playwright
-COPY --from=build /root/.dotnet/tools /root/.dotnet/tools
 
-# Use dumb-init for proper signal handling and Xvfb for virtual display
-ENTRYPOINT ["dumb-init", "xvfb-run", "-a", "./DiscordWhoIs"]
+ENTRYPOINT ["./DiscordWhoIs"]
+
