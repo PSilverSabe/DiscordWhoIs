@@ -27,8 +27,10 @@ namespace DiscordWhoIs
                 })
                 .ConfigureWebHostDefaults(web =>
                 {
+                    var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+
                     web.UseKestrel()
-                       .UseUrls("http://+:" + Environment.GetEnvironmentVariable("PORT"))
+                       .UseUrls($"http://0.0.0.0:{port}")
                        .Configure((context, app) =>
                        {
                            var uploadConfig = context.Configuration.BindValidated<UploadConfiguration>("Upload");
