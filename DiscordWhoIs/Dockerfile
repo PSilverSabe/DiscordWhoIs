@@ -41,5 +41,8 @@ RUN apk add --no-cache icu-libs
 
 COPY --from=build /app/publish/ .
 
+RUN mkdir -p /databases
+RUN chown -R $APP_USER:$APP_USER /databases
+
 ENTRYPOINT ["./DiscordWhoIs"]
 

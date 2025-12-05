@@ -17,11 +17,19 @@ namespace DiscordWhoIs.Databases.Repositories
             _logger = logger;
 
             using var context = _dbContextFactory.CreateDbContext();
-            context.Database.EnsureCreated(); // Creates DB + Aliases table if missing
+            try
+            {
+                context.Database.EnsureCreated(); // Creates DB + Aliases table if missing
 
-            // Load existing fanfics
-            SetLocalStore(context);
-            context.Dispose();
+                // Load existing fanfics
+                SetLocalStore(context);
+                context.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
+                Console.WriteLine(ex);
+            }
         }
 
 
@@ -84,24 +92,33 @@ namespace DiscordWhoIs.Databases.Repositories
             }
 
             using var context = _dbContextFactory.CreateDbContext();
-            var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Title, StringComparer.OrdinalIgnoreCase);
-            foreach (var fanfic in parsedContent)
-            {
-                if (existingFanfics.TryGetValue(fanfic.Title, out Fanfic? existingFanfic))
-                {
-                    fanfic.Id = existingFanfic.Id; // Preserve the ID for update
-                    context.Entry(existingFanfic).CurrentValues.SetValues(fanfic);
-                }
-                else
-                {
-                    // New entry
-                    context.Fanfics.Add(fanfic);
-                }
-            }
 
-            context.SaveChanges();
-            SetLocalStore(context);
-            context.Dispose();
+            try
+            {
+                var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Title, StringComparer.OrdinalIgnoreCase);
+                foreach (var fanfic in parsedContent)
+                {
+                    if (existingFanfics.TryGetValue(fanfic.Title, out Fanfic? existingFanfic))
+                    {
+                        fanfic.Id = existingFanfic.Id; // Preserve the ID for update
+                        context.Entry(existingFanfic).CurrentValues.SetValues(fanfic);
+                    }
+                    else
+                    {
+                        // New entry
+                        context.Fanfics.Add(fanfic);
+                    }
+                }
+
+                context.SaveChanges();
+                SetLocalStore(context);
+                context.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
+                Console.WriteLine(ex);
+            }
 
             return Task.FromResult(true); 
         }

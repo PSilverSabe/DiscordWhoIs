@@ -19,12 +19,20 @@ namespace DiscordWhoIs.Databases.Repositories
             _logger = logger;
 
             using var context = _dbContextFactory.CreateDbContext();
-            context.Database.EnsureCreated(); // Creates DB + Aliases table if missing
+            try
+            {
+                context.Database.EnsureCreated(); // Creates DB + Aliases table if missing
 
-            // Load existing aliases
-            foreach (var entry in context.Aliases.AsNoTracking())
-            { 
-                _store[entry.AliasUserName] = entry;
+                // Load existing aliases
+                foreach (var entry in context.Aliases.AsNoTracking())
+                {
+                    _store[entry.AliasUserName] = entry;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
+                Console.WriteLine(ex);
             }
         }
 
