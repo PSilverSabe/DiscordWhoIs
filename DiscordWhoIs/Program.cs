@@ -11,6 +11,8 @@ using DiscordWhoIs.Databases.Repositories;
 using DiscordWhoIs.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using DiscordWhoIs.Databases.Serializers;
+using System.Text.Json.Serialization.Metadata;
 
 namespace DiscordWhoIs
 {
@@ -113,8 +115,24 @@ namespace DiscordWhoIs
                     // Bot Service
                     services.AddSingleton<BotService>();
 
-                    // Controllers
-                    services.AddControllers();
+                    // Configure JSON serialization so source-generated contexts are used where available
+                    // but primitives and other types still fall back to the default resolver.
+                    var compositeResolver = new CompositeJsonTypeInfoResolver(
+                        ConfigurationJsonContext.Default,
+                        new DefaultJsonTypeInfoResolver());
+
+                    // Controllers (MVC) use the composite resolver
+                    services.AddControllers()
+                            .AddJsonOptions(opts =>
+                            {
+                                opts.JsonSerializerOptions.TypeInfoResolver = compositeResolver;
+                            });
+
+                    // Minimal APIs / Results serialization also needs the resolver
+                    services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(opts =>
+                    {
+                        opts.SerializerOptions.TypeInfoResolver = compositeResolver;
+                    });
 
                     // Config Bindings
                     services.AddSingleton(fandomConfig);
