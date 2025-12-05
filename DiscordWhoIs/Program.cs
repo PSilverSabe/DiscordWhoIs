@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Net;
 using DiscordWhoIs.Databases.Serializers;
 using System.Text.Json.Serialization.Metadata;
+using DiscordWhoIs.Controllers.Models;
 
 namespace DiscordWhoIs
 {
@@ -62,10 +63,10 @@ namespace DiscordWhoIs
                            app.UseRouting();
                            app.UseEndpoints(endpoints =>
                            {
-                               endpoints.MapGet("/ping", () => Results.Ok("pong"));
+                               endpoints.MapGet("/ping", () => Results.Ok(new PingResponse("pong")));
                                endpoints.MapControllers();
                            });
-                       });
+                        });
                 })
                 .ConfigureServices((context, services) =>
                 {

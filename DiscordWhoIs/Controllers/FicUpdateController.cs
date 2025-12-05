@@ -1,4 +1,5 @@
 ﻿using DiscordWhoIs.Configuration.Models;
+using DiscordWhoIs.Controllers.Models;
 using DiscordWhoIs.Databases.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Files = System.IO.File;
@@ -36,54 +37,52 @@ namespace DiscordWhoIs.Controllers
         [HttpGet("ping")]
         public IActionResult Ping()
         {
-            return Ok(new { status = "alive" });
+            // Return a concrete DTO (PingResponse) to avoid anonymous-type trimming issues.
+            return Ok(new PingResponse("alive"));
         }
 
         [HttpPost("file")]
         [RequestSizeLimit(100_000_000)]
-        public async Task<IActionResult> UploadUpdatedFanficCsvFile(IFormFile file)
+        public async Task<ActionResult<OperationResult>> UploadUpdatedFanficCsvFile(IFormFile file)
         {
             if (file == null || file.Length == 0)
-            {
-                return BadRequest("No file uploaded.");
-            }
+                return BadRequest(new OperationResult(false, "No file uploaded."));
 
             try
             {
                 var uploadDir = GetResolvedUploadDirectory();
                 Directory.CreateDirectory(uploadDir);
 
-                using var stream = new FileStream(GetResolvedUploadFilePath(), FileMode.Create);
+                await using var stream = new FileStream(GetResolvedUploadFilePath(), FileMode.Create);
                 await file.CopyToAsync(stream);
 
-                return Ok("File processed successfully.");
+                return Ok(new OperationResult(true, "File processed successfully."));
             }
             catch (Exception ex)
             {
-                return _uploadConfig.IncludeExceptionDetails
-                    ? StatusCode(500, $"Internal server error: {ex.Message}")
-                    : StatusCode(500, "Internal server error while processing the file.");
+                var msg = _uploadConfig.IncludeExceptionDetails ? $"Internal server error: {ex.Message}" : "Internal server error while processing the file.";
+                return StatusCode(500, new OperationResult(false, msg));
             }
         }
 
-        public async Task<IActionResult> UpdateDatabaseFromCsvFile()
+        // Endpoint to trigger processing of the uploaded CSV into the DB.
+        [HttpPost("update-db")]
+        public async Task<ActionResult<OperationResult>> UpdateDatabaseFromCsvFile()
         {
             var filePath = GetResolvedUploadFilePath();
-            if (Files.Exists(GetResolvedUploadFilePath()))
-            {
-                return NotFound("CSV file not found.");
-            }
+            if (!Files.Exists(filePath))
+                return NotFound(new OperationResult(false, "CSV file not found."));
+
             try
             {
                 await _fanficRepository.ImportFromCsvAsync(filePath);
+                return Ok(new OperationResult(true, "Database updated successfully from CSV file."));
             }
             catch (Exception ex)
             {
-                return _uploadConfig.IncludeExceptionDetails
-                    ? StatusCode(500, $"Internal server error: {ex.Message}")
-                    : StatusCode(500, "Internal server error while updating the database.");
+                var msg = _uploadConfig.IncludeExceptionDetails ? $"Internal server error: {ex.Message}" : "Internal server error while updating the database.";
+                return StatusCode(500, new OperationResult(false, msg));
             }
-            return Ok("Database updated successfully from CSV file.");
         }
     }
 }
