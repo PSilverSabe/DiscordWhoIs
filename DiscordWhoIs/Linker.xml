@@ -1,11 +1,30 @@
 ﻿<linker>
 	<assembly fullname="DiscordWhoIs">
-		<!-- Preserve all slash command modules -->
-		<type fullname="DiscordWhoIs.Commands.WhoIsCommandModule" preserve="all"/>
-		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all"/>
+		<!-- Source-generated JsonSerializerContext -->
+		<type fullname="DiscordWhoIs.Databases.Serializers.ConfigurationJsonContext" preserve="all" />
 
-		<!-- Preserve other InteractionModuleBase types if you add more -->
-		<!--<type fullname="DiscordWhoIs.Commands.Modules.OtherCommandModule" preserve="all"/>-->
+		<!-- Configuration model types used by binding/serialization -->
+		<type fullname="DiscordWhoIs.Configuration.Models.FileLocationConfiguration" preserve="all" />
+		<type fullname="DiscordWhoIs.Configuration.Models.FandomConfiguration" preserve="all" />
+		<type fullname="DiscordWhoIs.Configuration.Models.UploadConfiguration" preserve="all" />
+		<type fullname="DiscordWhoIs.Configuration.Models.DiscordConfiguration" preserve="all" />
+
+		<!-- EF Core DB models used via reflection -->
+		<type fullname="DiscordWhoIs.Databases.DbModels.Alias" preserve="all" />
+		<type fullname="DiscordWhoIs.Databases.DbModels.Fanfic" preserve="all" />
+
+		<!-- Controllers / DI-resolved services that may be reflected -->
+		<type fullname="DiscordWhoIs.Controllers.FicUpdateController" preserve="all" />
+		<type fullname="DiscordWhoIs.Services.BotService" preserve="all" />
+		<type fullname="DiscordWhoIs.Commands.WhoIsCommandModule" preserve="all" />
+		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all" />
+
+		<!-- Repositories / stores -->
+		<type fullname="DiscordWhoIs.Databases.Repositories.AliasRepository" preserve="all" />
+		<type fullname="DiscordWhoIs.Databases.Repositories.FanficRepository" preserve="all" />
+
+		<!-- Keep nullable/primitive helpers if used by reflection (conservative) -->
+		<type fullname="System.String" preserve="all" />
 	</assembly>
 
 	<!-- Preserve Discord.Net assemblies used by reflection -->
@@ -13,8 +32,10 @@
 	<assembly fullname="Discord.Net.Core" preserve="all"/>
 	<assembly fullname="Discord.Net.Rest" preserve="all"/>
 	<assembly fullname="Discord.Net.WebSocket" preserve="all"/>
+	
 	<!-- Preserve Newtonsoft.Json for reflection -->
 	<assembly fullname="Newtonsoft.Json" preserve="all"/>
+	
 	<!-- Preserve Entity Framework Core for reflection -->
 	<assembly fullname="Microsoft.EntityFrameworkCore" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Relational" preserve="all"/>
