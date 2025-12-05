@@ -46,11 +46,8 @@ ARG APP_USER=discordwhois
 # Create user
 RUN adduser --disabled-password --gecos "" $APP_USER
 
-# Create DB folder
-RUN mkdir -p /databases
-
 # Fix permissions
-RUN chown -R $APP_USER:$APP_USER /databases
+RUN mkdir -p /databases && chown -R $APP_USER:$APP_USER /databases
 
 ENTRYPOINT ["./DiscordWhoIs"]
 
