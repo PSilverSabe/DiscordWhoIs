@@ -28,7 +28,7 @@ namespace DiscordWhoIs
                 .ConfigureWebHostDefaults(web =>
                 {
                     web.UseKestrel()
-                       .UseUrls("http://0.0.0.0:5000")
+                       .UseUrls("http://+:" + Environment.GetEnvironmentVariable("PORT"))
                        .Configure((context, app) =>
                        {
                            var uploadConfig = context.Configuration.BindValidated<UploadConfiguration>("Upload");
@@ -58,6 +58,7 @@ namespace DiscordWhoIs
                            app.UseRouting();
                            app.UseEndpoints(endpoints =>
                            {
+                               endpoints.MapGet("/ping", () => Results.Ok("pong"));
                                endpoints.MapControllers();
                            });
                        });
