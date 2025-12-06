@@ -9,31 +9,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup SSH private key
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      # Add VPS host to known_hosts
       - name: Add VPS to known_hosts
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
       # ============================
-      # BUILD IMAGES
+      # BUILD IMAGES (FIXED PATHS)
       # ============================
 
       - name: Build Web image
-        run: docker build -t discordwhois_web:latest -f DiscordWhoIs/Dockerfile.web .
+        run: docker build -t discordwhois_web:latest -f Dockerfile.web .
 
       - name: Build Worker image
-        run: docker build -t discordwhois_worker:latest -f DiscordWhoIs/Dockerfile.worker .
+        run: docker build -t discordwhois_worker:latest -f Dockerfile.worker .
 
       # ============================
       # SAVE IMAGES
@@ -66,9 +63,3 @@ jobs:
             echo 'Loading Docker images...'
             docker load -i discordwhois_web.tar
             docker load -i discordwhois_worker.tar
-
-            echo 'Running blue/green swap...'
-            cd ~/discordwhois.variables
-            chmod +x swap.sh
-            ./swap.sh
-          "
