@@ -23,11 +23,21 @@ namespace DiscordWhoIs.Core.Extensions
 
             // Environment-based database paths
             var baseDir = AppContext.BaseDirectory;
-    
+
+            var envName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var isDevelopment = string.Equals(envName, "Development", StringComparison.OrdinalIgnoreCase);
+
             string botDbContext;
-            var targetDir = string.IsNullOrWhiteSpace(botDbContextConfig.TargetDirectory) ? baseDir : botDbContextConfig.TargetDirectory;
-            var fileName = string.IsNullOrWhiteSpace(botDbContextConfig.FileName) ? "botdbcontext.sqlite" : botDbContextConfig.FileName;
-            botDbContext = Path.Combine(targetDir, fileName);
+            if (isDevelopment)
+            {
+                botDbContext = Path.Combine(baseDir, "botdbcontext.sqlite");
+            }
+            else
+            {
+                var targetDir = string.IsNullOrWhiteSpace(botDbContextConfig.TargetDirectory) ? baseDir : botDbContextConfig.TargetDirectory;
+                var fileName = string.IsNullOrWhiteSpace(botDbContextConfig.FileName) ? "botdbcontext.sqlite" : botDbContextConfig.FileName;
+                botDbContext = Path.Combine(targetDir, fileName);
+            }
 
             if (string.IsNullOrWhiteSpace(botDbContext))
             {
