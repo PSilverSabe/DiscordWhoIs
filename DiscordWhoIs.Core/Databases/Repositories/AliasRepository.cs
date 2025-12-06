@@ -1,11 +1,11 @@
-using Microsoft.Extensions.Logging;
-using DiscordWhoIs.Databases.DbContexts;
-using DiscordWhoIs.Databases.Interfaces;
-using DiscordWhoIs.Databases.DbModels;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
+using DiscordWhoIs.Core.Databases.Interfaces;
+using DiscordWhoIs.Core.Databases.DbContexts;
+using DiscordWhoIs.Core.Databases.DbModels;
+using Microsoft.Extensions.Logging;
 
-namespace DiscordWhoIs.Databases.Repositories
+namespace DiscordWhoIs.Core.Databases.Repositories
 {
     public class AliasRepository : IAliasRepository
     {
@@ -49,7 +49,7 @@ namespace DiscordWhoIs.Databases.Repositories
             {
                 return Task.FromResult(false);
             }
-
+                
             return Task.FromResult(_store.TryGetValue(alias.Trim(), out var entry) && (real = entry.RealUserName) != null);
         }
 

@@ -1,13 +1,38 @@
+version: '3.8'
+
 services:
-  discordwhois:
-    container_name: discordwhois
-    image: ${DOCKER_REGISTRY-}discordwhois
+  web:
+    container_name: discordwhois_web
     build:
       context: .
-      dockerfile: DiscordWhoIs/Dockerfile
+      dockerfile: Dockerfile.web
+    image: ${DOCKER_REGISTRY-}discordwhois_web
     env_file:
       - .env
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
     ports:
-      - "8080:8080"
+      - "8080:80"
       - "8083:8081"
+    volumes:
+      - ./data:/databases
+    restart: unless-stopped
+
+  worker:
+    container_name: discordwhois_worker
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: ${DOCKER_REGISTRY-}discordwhois_worker
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+    volumes:
+      - ./data:/databases
+    depends_on:
+      - web
     restart: unless-stopped

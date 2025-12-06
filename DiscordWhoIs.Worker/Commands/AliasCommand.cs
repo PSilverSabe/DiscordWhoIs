@@ -1,10 +1,10 @@
 ﻿using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Databases.Interfaces;
-using DiscordWhoIs.Databases.Repositories;
+using DiscordWhoIs.Core.Databases.Interfaces;
+using Microsoft.Extensions.Logging;
 using System.Text;
 
-namespace DiscordWhoIs.Commands
+namespace DiscordWhoIs.Worker.Commands
 {
     [Group("alias", "Manage Ao3 aliases")]
     public class AliasCommandModule(

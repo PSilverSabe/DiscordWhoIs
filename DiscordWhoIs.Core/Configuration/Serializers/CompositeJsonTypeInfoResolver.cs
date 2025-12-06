@@ -1,4 +1,4 @@
-namespace DiscordWhoIs.Databases.Serializers
+namespace DiscordWhoIs.Core.Configuration.Serializers
 {
     using System;
     using System.Text.Json;

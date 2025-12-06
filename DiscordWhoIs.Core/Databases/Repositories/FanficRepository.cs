@@ -1,11 +1,11 @@
-using Microsoft.Extensions.Logging;
-using DiscordWhoIs.Databases.DbContexts;
-using DiscordWhoIs.Databases.DbModels;
-using DiscordWhoIs.Databases.Interfaces;
+﻿using DiscordWhoIs.Core.Databases.DbContexts;
+using DiscordWhoIs.Core.Databases.DbModels;
+using DiscordWhoIs.Core.Databases.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
-namespace DiscordWhoIs.Databases.Repositories
+namespace DiscordWhoIs.Core.Databases.Repositories
 {
     public class FanficRepository : IFanficRepository
     {

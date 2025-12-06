@@ -6,8 +6,9 @@ WORKDIR /src
 RUN apk add --no-cache --virtual .build-deps \
         zlib-dev icu-dev libgcc libstdc++ bash
 
-# Restore
+# Copy project files for restore (include referenced projects)
 COPY ["DiscordWhoIs.Web/DiscordWhoIs.Web.csproj", "DiscordWhoIs.Web/"]
+COPY ["DiscordWhoIs.Core/DiscordWhoIs.Core.csproj", "DiscordWhoIs.Core/"]
 RUN dotnet restore "DiscordWhoIs.Web/DiscordWhoIs.Web.csproj"
 
 # Copy source

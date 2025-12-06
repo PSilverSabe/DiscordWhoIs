@@ -1,6 +1,15 @@
-namespace DiscordWhoIs.Databases.Interfaces
+﻿using DiscordWhoIs.Core.Databases.DbModels;
+
+namespace DiscordWhoIs.Core.Databases.Interfaces
 {
-    public interface IFanficRepository: IRepository<DiscordWhoIs.Databases.DbModels.Fanfic>
+    public interface IFanficRepository : IRepository<Fanfic>
     {
+        Task<IReadOnlyList<Fanfic>> GetAllByAuthorAsync(string authorName);
+
+        Task<Fanfic?> GetByTitleAsync(string title);
+
+        Task<Fanfic?> GetByIdAsync(int id);
+
+        Task<bool> ImportFromCsvAsync(string csvFileName);
     }
 }

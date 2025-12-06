@@ -1,8 +1,9 @@
 ﻿using Discord;
 using Discord.Interactions;
-using DiscordWhoIs.Databases.Interfaces;
+using DiscordWhoIs.Core.Databases.Interfaces;
+using Microsoft.Extensions.Logging;
 
-namespace DiscordWhoIs.Commands
+namespace DiscordWhoIs.Worker.Commands
 {
     public class WhoIsCommandModule(
         IFanficRepository fanficRepository,

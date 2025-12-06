@@ -1,8 +1,8 @@
-namespace DiscordWhoIs.Configuration.Models
+namespace DiscordWhoIs.Core.Configuration.Models
 {
     public class DiscordConfiguration
     {
-        public required string Token { get; set; }
+        public string Token { get; set; } = string.Empty;
 
         public ulong? AllowRoleId { get; set; } = null;
 

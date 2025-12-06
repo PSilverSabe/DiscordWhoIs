@@ -1,8 +1,8 @@
-using DiscordWhoIs.Databases.DbModels;
+﻿using DiscordWhoIs.Core.Databases.DbModels;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
 
-namespace DiscordWhoIs.Databases.DbContexts
+namespace DiscordWhoIs.Core.Databases.DbContexts
 {
     [method: DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(Alias))]
 #pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code

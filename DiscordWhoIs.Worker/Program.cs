@@ -1,69 +1,35 @@
+using DiscordWhoIs.Core.Extensions;
+using DiscordWhoIs.Core.Configuration.Models;
+using DiscordWhoIs.Worker.Services;
+using DiscordWhoIs.Worker.Commands.Registry;
+using DiscordWhoIs.Worker; // bring Worker class into scope
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Commands.Registry;
-using DiscordWhoIs.Configuration;
-using DiscordWhoIs.Configuration.Models;
-using DiscordWhoIs.Databases.DbContexts;
-using DiscordWhoIs.Databases.Repositories;
-using DiscordWhoIs.Worker.Services;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
-var builder = Host.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((context, config) =>
+IHost host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices((hostContext, services) =>
     {
-        config.AddEnvironmentVariables();
-        config.AddJsonFile("appsettings.json", optional: false);
-        config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
-    })
-    .ConfigureServices((context, services) =>
-    {
-        // Bind configs
-        var discordConfig = context.Configuration.BindValidated<DiscordConfiguration>("Discord");
-        var botDbContextConfig = context.Configuration.BindValidated<FileLocationConfiguration>("BotDbContext");
+        // Register Core services (DbContextFactory + repositories)
+        services.AddDiscordWhoIsCore(hostContext.Configuration);
 
-        // DbContext factory
-        var baseDir = AppContext.BaseDirectory;
-        var botDbContext = context.HostingEnvironment.IsDevelopment()
-            ? Path.Combine(baseDir, "botdbcontext.sqlite")
-            : Path.Combine(botDbContextConfig.TargetDirectory, botDbContextConfig.FileName) ?? Path.Combine(baseDir, "botdbcontext.sqlite");
-
-        services.AddDbContextFactory<DiscordWhoIs.Databases.DbContexts.BotDbContext>(options =>
-            options.UseSqlite($"Data Source={botDbContext}"));
-
-        // Discord client
-        services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
-        {
-            GatewayIntents = GatewayIntents.AllUnprivileged
-        }));
-
-        // Interaction service
-        services.AddSingleton(sp =>
-        {
-            var client = sp.GetRequiredService<DiscordSocketClient>();
-            return new InteractionService(client.Rest);
-        });
-
-        // Repositories
-        services.AddSingleton<DiscordWhoIs.Databases.Repositories.AliasRepository>();
-        services.AddSingleton<DiscordWhoIs.Databases.Interfaces.IAliasRepository>(sp => sp.GetRequiredService<DiscordWhoIs.Databases.Repositories.AliasRepository>());
-
-        services.AddSingleton<DiscordWhoIs.Databases.Repositories.FanficRepository>();
-        services.AddSingleton<DiscordWhoIs.Databases.Interfaces.IFanficRepository>(sp => sp.GetRequiredService<DiscordWhoIs.Databases.Repositories.FanficRepository>());
-
-        // CommandRegistry and bot service
-        services.AddSingleton<CommandRegistry>();
-        services.AddSingleton<DiscordWhoIs.Worker.Services.BotService>();
-
-        // Configs
+        // Bind Discord configuration section and register instance
+        var discordConfig = hostContext.Configuration.GetSection("Discord").Get<DiscordConfiguration>() ?? new DiscordConfiguration();
         services.AddSingleton(discordConfig);
-    });
 
-var host = builder.Build();
+        // Discord.NET core services
+        services.AddSingleton<DiscordSocketClient>();
+        services.AddSingleton(sp => new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
 
-// Start BotService
-await host.Services.GetRequiredService<DiscordWhoIs.Worker.Services.BotService>().StartAsync();
+        // Command registry and bot service
+        services.AddSingleton<CommandRegistry>();
+        services.AddSingleton<BotService>();
 
-// Run host
+        // Background worker wrapper that runs the bot
+        services.AddHostedService<Worker>();
+    })
+    .Build();
+
 await host.RunAsync();

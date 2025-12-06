@@ -1,4 +1,4 @@
-namespace DiscordWhoIs.Databases.DbModels
+﻿namespace DiscordWhoIs.Core.Databases.DbModels
 {
     using System.ComponentModel.DataAnnotations.Schema;
 

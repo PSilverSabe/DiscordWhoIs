@@ -7,28 +7,9 @@
     <ProjectGuid>81dded9d-158b-e303-5f62-77a2896d2a5a</ProjectGuid>
     <DockerLaunchAction>LaunchBrowser</DockerLaunchAction>
     <DockerServiceUrl>{Scheme}://localhost:{ServicePort}/{Scheme}://{ServiceHost}:{ServicePort}</DockerServiceUrl>
-    <DockerServiceName>discordwhois</DockerServiceName>
+    <DockerServiceName>web</DockerServiceName>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="DiscordWhoIs.Core\Configuration\ConfigurationBinder.cs" />
-    <None Include="DiscordWhoIs.Core\Configuration\Models\DiscordConfiguration.cs" />
-    <None Include="DiscordWhoIs.Core\Configuration\Models\UploadConfiguration.cs" />
-    <None Include="DiscordWhoIs.Core\Configuration\Serializers\CompositeJsonTypeInfoResolver.cs" />
-    <None Include="DiscordWhoIs.Core\Configuration\Serializers\ConfigurationJsonContext.cs" />
-    <None Include="DiscordWhoIs.Core\Controllers\Models\OperationResult.cs" />
-    <None Include="DiscordWhoIs.Core\Controllers\Models\UploadFileRequest.cs" />
-    <None Include="DiscordWhoIs.Core\Databases\DbContexts\BotDbContext.cs" />
-    <None Include="DiscordWhoIs.Core\Databases\Interfaces\IAliasRepository.cs" />
-    <None Include="DiscordWhoIs.Core\Databases\Interfaces\IFanficRepository.cs" />
-    <None Include="DiscordWhoIs.Core\Databases\Interfaces\IRepository.cs" />
-    <None Include="DiscordWhoIs.Core\Databases\Repositories\FanficRepository.cs" />
-    <None Include="DiscordWhoIs.Core\DiscordWhoIs.Core.csproj" />
-    <None Include="DiscordWhoIs.Core\Models\PingResponse.cs" />
-    <None Include="DiscordWhoIs.Web\DiscordWhoIs.Web.csproj" />
-    <None Include="DiscordWhoIs.Web\Program.cs" />
-    <None Include="DiscordWhoIs.Worker\DiscordWhoIs.Worker.csproj" />
-    <None Include="DiscordWhoIs.Worker\Program.cs" />
-    <None Include="DiscordWhoIs.Worker\Services\BotService.cs" />
     <None Include="docker-compose.override.yml">
       <DependentUpon>docker-compose.yml</DependentUpon>
     </None>

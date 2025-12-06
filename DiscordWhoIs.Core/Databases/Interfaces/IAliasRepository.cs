@@ -1,6 +1,6 @@
-using DiscordWhoIs.Databases.DbModels;
+﻿using DiscordWhoIs.Core.Databases.DbModels;
 
-namespace DiscordWhoIs.Databases.Interfaces
+namespace DiscordWhoIs.Core.Databases.Interfaces
 {
     public interface IAliasRepository: IRepository<Alias>
     {

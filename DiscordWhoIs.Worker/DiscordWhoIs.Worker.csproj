@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DiscordWhoIs.Core\DiscordWhoIs.Core.csproj" />
-    <ProjectReference Include="..\DiscordWhoIs\DiscordWhoIs.csproj" />
   </ItemGroup>
 
   <ItemGroup>

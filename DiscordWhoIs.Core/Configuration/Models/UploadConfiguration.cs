@@ -1,4 +1,4 @@
-namespace DiscordWhoIs.Configuration.Models
+namespace DiscordWhoIs.Core.Configuration.Models
 {
     public class UploadConfiguration : FileLocationConfiguration
     {

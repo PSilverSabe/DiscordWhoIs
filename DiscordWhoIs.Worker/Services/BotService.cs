@@ -1,8 +1,8 @@
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Commands.Registry;
-using DiscordWhoIs.Configuration.Models;
+using DiscordWhoIs.Core.Configuration.Models;
+using DiscordWhoIs.Worker.Commands.Registry;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 
