@@ -47,8 +47,6 @@ namespace DiscordWhoIs.Worker.Commands
                 _logger.LogInformation("No alias found for {Requested}, using as-is", requested);
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
-
             // Fetch fics
             var fics = await _fanfic.GetAllByAuthorAsync(real);
 
@@ -61,15 +59,13 @@ namespace DiscordWhoIs.Worker.Commands
                 return;
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(2)); // Simulate processing time
-
             // Final status line
             statusLines.Add($"Fetched {fics.Count} fics for **{real}**.");
             _logger.LogInformation("Fetched {Count} fics for {User}", fics.Count, real);
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Send embed as a separate normal message
-            var displayName = hasFoundAlias ? $"{requested} (alias: {real})" : real;
+            var displayName = hasFoundAlias ? $"{real} (alias: {requested})" : real;
 
             var embed = new EmbedBuilder()
                 .WithTitle($"Recent works for {displayName}")
@@ -79,8 +75,6 @@ namespace DiscordWhoIs.Worker.Commands
 
             Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
 
-            // TODO - Add Last Updated from fic
-            // TODO - Add Chapter
             foreach (var fic in fics.OrderByDescending(x => x.FicLastUpdated).Take(10))
             {
                 var truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
