@@ -43,8 +43,9 @@ namespace DiscordWhoIs.Controllers
 
         [HttpPost("file")]
         [RequestSizeLimit(100_000_000)]
-        public async Task<ActionResult<OperationResult>> UploadUpdatedFanficCsvFile([FromForm] IFormFile file)
+        public async Task<ActionResult<OperationResult>> UploadUpdatedFanficCsvFile([FromForm] UploadFileRequest request)
         {
+            var file = request.File;
             if (file == null || file.Length == 0)
                 return BadRequest(new OperationResult(false, "No file uploaded."));
 

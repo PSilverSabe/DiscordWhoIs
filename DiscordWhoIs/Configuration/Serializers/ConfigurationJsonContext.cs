@@ -10,6 +10,7 @@ namespace DiscordWhoIs.Databases.Serializers
     [JsonSerializable(typeof(UploadConfiguration))]
     [JsonSerializable(typeof(PingResponse))] // preserve source-gen metadata for PingResponse
     [JsonSerializable(typeof(OperationResult))] // preserve source-gen metadata for OperationResult
+    [JsonSerializable(typeof(UploadFileRequest))] // preserve source-gen metadata for UploadFileRequest
     public partial class ConfigurationJsonContext : JsonSerializerContext { }
 
 }
