@@ -4,7 +4,10 @@ using Discord.WebSocket;
 using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Worker.Commands.Registry;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace DiscordWhoIs.Worker.Services
 {

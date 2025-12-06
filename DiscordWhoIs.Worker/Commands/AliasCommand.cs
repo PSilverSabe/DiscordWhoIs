@@ -1,7 +1,11 @@
 ﻿using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.Interfaces;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace DiscordWhoIs.Worker.Commands
 {

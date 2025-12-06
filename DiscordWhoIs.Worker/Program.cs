@@ -1,10 +1,14 @@
-using DiscordWhoIs.Core.Extensions;
-using DiscordWhoIs.Core.Configuration.Models;
-using DiscordWhoIs.Worker.Services;
-using DiscordWhoIs.Worker.Commands.Registry;
-using DiscordWhoIs.Worker;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordWhoIs.Core.Extensions;
+using DiscordWhoIs.Worker;
+using DiscordWhoIs.Worker.Commands.Registry;
+using DiscordWhoIs.Worker.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System;
+using System.IO;
 
 IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((context, config) =>

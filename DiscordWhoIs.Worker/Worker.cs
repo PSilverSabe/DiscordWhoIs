@@ -1,8 +1,9 @@
-using Microsoft.Extensions.Hosting;
-using System.Threading.Tasks;
-using System.Threading;
-using Microsoft.Extensions.Logging;
 using DiscordWhoIs.Worker.Services;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DiscordWhoIs.Worker
 {

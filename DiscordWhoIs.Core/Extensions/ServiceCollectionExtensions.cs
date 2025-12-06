@@ -1,3 +1,4 @@
+using DiscordWhoIs.Core.Configuration;
 using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Databases.Interfaces;
@@ -7,7 +8,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
-using DiscordWhoIs.Core.Configuration;
 
 namespace DiscordWhoIs.Core.Extensions
 {

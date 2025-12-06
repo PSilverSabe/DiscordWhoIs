@@ -1,8 +1,8 @@
 ﻿<linker>
-	<assembly fullname="DiscordWhoIs">
+	<assembly fullname="DiscordWhoIs.Worker">
 		<type fullname="DiscordWhoIs.Worker.Services.BotService" preserve="all" />
-		<type fullname="DiscordWhoIs.Worker.Commands.WhoIsCommandModule" preserve="all" />
-		<type fullname="DiscordWhoIs.Worker.Commands.AliasCommandModule" preserve="all" />
+		<!-- Preserve all command modules in this namespace via pattern -->
+		<type fullname="DiscordWhoIs.Worker.Commands.*" preserve="all" />
 	</assembly>
 
 	<!-- Preserve Discord.Net assemblies used by reflection -->
@@ -18,4 +18,5 @@
 	<assembly fullname="Microsoft.EntityFrameworkCore" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Relational" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Sqlite" preserve="all"/>
+	<assembly fullname="Microsoft.EntityFrameworkCore.Abstractions" preserve="all"/>
 </linker>
