@@ -49,8 +49,15 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             {
                 return Task.FromResult(false);
             }
-                
-            return Task.FromResult(_store.TryGetValue(alias.Trim(), out var entry) && (real = entry.RealUserName) != null);
+
+            var hasAlias = _store.TryGetValue(alias.Trim(), out var entry);
+            if (hasAlias && entry != null)
+            {
+                real = entry.RealUserName;
+            }
+
+
+            return Task.FromResult(hasAlias);
         }
 
         public Task<bool> TryGetAsync(string alias, out Alias? entry)

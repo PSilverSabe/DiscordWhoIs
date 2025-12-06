@@ -1,9 +1,13 @@
-﻿using DiscordWhoIs.Core.Databases.DbContexts;
+﻿using CsvHelper;
+using CsvHelper.Configuration;
+using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 
 namespace DiscordWhoIs.Core.Databases.Repositories
 {
@@ -64,30 +68,14 @@ namespace DiscordWhoIs.Core.Databases.Repositories
                 return Task.FromResult(false);
             }
 
-            var parsedContent = File.ReadAllLines(csvFileName)
-                                        .Select(static x =>
-                                        {
-                                            var parts = x.Split(',');
-                                            return new Fanfic
-                                            {
-                                                Link = SafeParseCsvField(parts, 0),
-                                                Title = SafeParseCsvField(parts, 1),
-                                                Author = SafeParseCsvField(parts, 2),
-                                                Summary = SafeParseCsvField(parts, 3),
-                                                WordCount = SafeParseCsvIntField(parts, 4),
-                                                HitCount = SafeParseCsvIntField(parts, 5),
-                                                CommentCount = SafeParseCsvIntField(parts, 6),
-                                                KudosCount = SafeParseCsvIntField(parts, 7),
-                                                BookmarksCount = SafeParseCsvIntField(parts, 8),
-                                                Rating = SafeParseCsvField(parts, 9),
-                                                Warnings = SafeParseCsvField(parts, 10),
-                                                Category = SafeParseCsvField(parts, 11),
-                                                LastSeenPage = SafeParseCsvIntField(parts, 12),
-                                                DateAdded = DateTime.Parse(parts[13]),
-                                                DateUpdated = DateTime.Parse(parts[14]),
-                                            };
-                                        });
-            if (!parsedContent.Any())
+            var parsedContent = new List<Fanfic>();
+            using(var reader = new StreamReader(csvFileName))
+            using(var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
+            {
+                parsedContent.AddRange(csv.GetRecords<Fanfic>());
+            }
+
+            if (parsedContent.Count == 0)
             {
                 return Task.FromResult(false);
             }

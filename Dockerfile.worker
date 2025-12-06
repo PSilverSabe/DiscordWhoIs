@@ -9,6 +9,8 @@ RUN apk add --no-cache --virtual .build-deps \
 # Copy project files for restore (include referenced projects)
 COPY ["DiscordWhoIs.Worker/DiscordWhoIs.Worker.csproj", "DiscordWhoIs.Worker/"]
 COPY ["DiscordWhoIs.Core/DiscordWhoIs.Core.csproj", "DiscordWhoIs.Core/"]
+COPY ["appsettings.json", "appsettings.json"]
+
 RUN dotnet restore "DiscordWhoIs.Worker/DiscordWhoIs.Worker.csproj"
 
 # Copy source
@@ -36,6 +38,7 @@ WORKDIR /app
 RUN apk add --no-cache icu-libs
 
 COPY --from=build /app/publish/ .
+COPY --from=build /src/appsettings.json ./appsettings.json
 
 ARG APP_USER=discordwhois
 RUN adduser --disabled-password --gecos "" $APP_USER

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -9,6 +9,7 @@
     <TrimMode>Link</TrimMode>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
+    <UserSecretsId>6d51e116-b485-451a-8e50-14788ee6e5a6</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +20,12 @@
     <PackageReference Include="Discord.Net" Version="3.18.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <TrimmerRootDescriptor Include="..\Linker.xml" />
-  </ItemGroup>
+	<ItemGroup>
+		<TrimmerRootDescriptor Include="Linker.xml" />
+	</ItemGroup>
+	<ItemGroup>
+		<None Update="Linker.xml">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 </Project>

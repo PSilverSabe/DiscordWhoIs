@@ -1,0 +1,21 @@
+﻿<linker>
+	<assembly fullname="DiscordWhoIs">
+		<type fullname="DiscordWhoIs.Worker.Services.BotService" preserve="all" />
+		<type fullname="DiscordWhoIs.Worker.Commands.WhoIsCommandModule" preserve="all" />
+		<type fullname="DiscordWhoIs.Worker.Commands.AliasCommandModule" preserve="all" />
+	</assembly>
+
+	<!-- Preserve Discord.Net assemblies used by reflection -->
+	<assembly fullname="Discord.Net.Interactions" preserve="all"/>
+	<assembly fullname="Discord.Net.Core" preserve="all"/>
+	<assembly fullname="Discord.Net.Rest" preserve="all"/>
+	<assembly fullname="Discord.Net.WebSocket" preserve="all"/>
+
+	<!-- Preserve Newtonsoft.Json for reflection -->
+	<assembly fullname="Newtonsoft.Json" preserve="all"/>
+
+	<!-- Preserve Entity Framework Core for reflection -->
+	<assembly fullname="Microsoft.EntityFrameworkCore" preserve="all"/>
+	<assembly fullname="Microsoft.EntityFrameworkCore.Relational" preserve="all"/>
+	<assembly fullname="Microsoft.EntityFrameworkCore.Sqlite" preserve="all"/>
+</linker>

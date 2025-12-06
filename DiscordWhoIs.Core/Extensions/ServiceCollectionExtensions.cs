@@ -23,21 +23,11 @@ namespace DiscordWhoIs.Core.Extensions
 
             // Environment-based database paths
             var baseDir = AppContext.BaseDirectory;
-
-            var envName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            var isDevelopment = string.Equals(envName, "Development", StringComparison.OrdinalIgnoreCase);
     
             string botDbContext;
-            if (isDevelopment)
-            {
-                botDbContext = Path.Combine(baseDir, "botdbcontext.sqlite");
-            }
-            else
-            {
-                var targetDir = string.IsNullOrWhiteSpace(botDbContextConfig.TargetDirectory) ? baseDir : botDbContextConfig.TargetDirectory;
-                var fileName = string.IsNullOrWhiteSpace(botDbContextConfig.FileName) ? "botdbcontext.sqlite" : botDbContextConfig.FileName;
-                botDbContext = Path.Combine(targetDir, fileName);
-            }
+            var targetDir = string.IsNullOrWhiteSpace(botDbContextConfig.TargetDirectory) ? baseDir : botDbContextConfig.TargetDirectory;
+            var fileName = string.IsNullOrWhiteSpace(botDbContextConfig.FileName) ? "botdbcontext.sqlite" : botDbContextConfig.FileName;
+            botDbContext = Path.Combine(targetDir, fileName);
 
             if (string.IsNullOrWhiteSpace(botDbContext))
             {
@@ -47,11 +37,12 @@ namespace DiscordWhoIs.Core.Extensions
             // Register DbContextFactory in Core so both Web and Worker can create contexts safely
             services.AddDbContextFactory<BotDbContext>(options =>
             {
-                options.UseSqlite(botDbContext);
+                options.UseSqlite($"Data Source={botDbContext}");
             });
 
             // Repository uses an in-memory concurrent store and IDbContextFactory; keep a singleton so the cache is shared
             services.AddSingleton<IFanficRepository, FanficRepository>();
+            services.AddSingleton<IAliasRepository, AliasRepository>();
 
             // Config Bindings
             services.AddSingleton(fandomConfig);

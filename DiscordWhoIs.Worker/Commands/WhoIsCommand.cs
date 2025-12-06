@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Core.Databases.Interfaces;
-using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands
 {
@@ -18,13 +17,14 @@ namespace DiscordWhoIs.Worker.Commands
         public async Task WhoIsAsync(
             [Summary("user", "Ao3 username or configured alias")] string requested)
         {
+            await DeferAsync(ephemeral: true);
+
             if (string.IsNullOrWhiteSpace(requested))
             {
                 await RespondAsync("Please provide a username or alias.", ephemeral: true);
+                _logger.LogWarning("No username or alias provided.");
                 return;
             }
-
-            await DeferAsync(ephemeral: true);
 
             var statusLines = new List<string> { $"Resolving alias and checking database for **{requested}**..." };
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
@@ -33,9 +33,15 @@ namespace DiscordWhoIs.Worker.Commands
             var hasFoundAlias = await _alias.TryResolveAsync(requested, out var real);
             if (hasFoundAlias)
             {
-                statusLines.Add($"Alias **{requested}** resolved to **{real}**.");
-                await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
+                _logger.LogInformation("Resolved alias {Alias} to {RealUser}", requested, real);
             }
+            else
+            {
+                real = requested;
+                _logger.LogInformation("No alias found for {Requested}, using as-is", requested);
+            }
+
+            Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
 
             // Fetch fics
             var fics = await _fanfic.GetAllByAuthorAsync(real);
@@ -44,16 +50,20 @@ namespace DiscordWhoIs.Worker.Commands
             {
                 statusLines.Add($"No fics found for **{real}**. Please wait for the daily scrape update." +
                                 (real.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
+                _logger.LogInformation("No fics found for {User}", real);
                 await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
                 return;
             }
 
+            Thread.Sleep(TimeSpan.FromSeconds(2)); // Simulate processing time
+
             // Final status line
             statusLines.Add($"Fetched {fics.Count} fics for **{real}**.");
+            _logger.LogInformation("Fetched {Count} fics for {User}", fics.Count, real);
             await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
             // Send embed as a separate normal message
-            var displayName = hasFoundAlias ? $"{requested} (alias: {real})" : real ;
+            var displayName = hasFoundAlias ? $"{requested} (alias: {real})" : real;
 
             var embed = new EmbedBuilder()
                 .WithTitle($"Recent works for {displayName}")
@@ -61,10 +71,14 @@ namespace DiscordWhoIs.Worker.Commands
                 .WithFooter("Source: Archive of Our Own")
                 .WithColor(Color.DarkBlue);
 
-            foreach (var fic in fics.Take(10))
+            Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
+
+            // TODO - Add Last Updated from fic
+            // TODO - Add Chapter
+            foreach (var fic in fics.OrderByDescending(x => x.FicLastUpdated).Take(10))
             {
                 var truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
-                embed.AddField(truncatedTitle, fic.Title, inline: false);
+                embed.AddField(truncatedTitle, fic.Link, inline: false);
             }
 
             await Context.Channel.SendMessageAsync(embed: embed.Build());

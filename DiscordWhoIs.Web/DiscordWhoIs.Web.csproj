@@ -6,6 +6,7 @@
 
     <!-- Keep web project untrimmed for MVC/ApiExplorer compatibility -->
     <PublishTrimmed>false</PublishTrimmed>
+    <UserSecretsId>e00005f5-9985-483f-afe7-6fed764763f8</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
