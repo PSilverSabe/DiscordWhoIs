@@ -57,9 +57,24 @@ jobs:
 
       - name: Load images & run swap.sh
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            set -e
+
             cd ~/discordwhois
 
-            echo 'Loading Docker images...'
+            echo "Loading Docker images..."
             docker load -i discordwhois_web.tar
             docker load -i discordwhois_worker.tar
+
+            echo "Cleaning old tar files..."
+            rm -f discordwhois_web.tar discordwhois_worker.tar
+            rm -f *.tar 2>/dev/null || true
+
+            echo "Running blue/green swap..."
+            cd ~/discordwhois.variables
+            chmod +x swap.sh
+            ./swap.sh
+
+            echo "Deployment completed successfully."
+          '
+
