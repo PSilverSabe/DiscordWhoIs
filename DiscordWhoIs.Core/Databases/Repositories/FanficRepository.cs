@@ -45,8 +45,10 @@ namespace DiscordWhoIs.Core.Databases.Repositories
 
         public Task<IReadOnlyList<Fanfic>> GetAllByAuthorAsync(string author)
         {
-            IReadOnlyList<Fanfic> results = [.. _store.Values];
-            results = [.. results.Where(f => f.Author.Equals(author, StringComparison.OrdinalIgnoreCase))];
+            IReadOnlyList<Fanfic> directSearch = [.. _store.Values.Where(f => f.Author.Equals(author, StringComparison.OrdinalIgnoreCase))];
+            IReadOnlyList<Fanfic> pseudSearch = [.. _store.Values.Where(f => f.Author.Contains($"({author})", StringComparison.OrdinalIgnoreCase))];
+            IReadOnlyList<Fanfic> results = [..directSearch, ..pseudSearch];
+
             return Task.FromResult(results);
         }
 
@@ -120,25 +122,6 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             {
                 _store[entry.Title] = entry;
             }
-        }
-
-        private static string SafeParseCsvField(string[] parts, int index)
-        {
-            if (parts.Length == index)
-                return string.Empty;
-            return parts[index];
-        }
-
-        private static int SafeParseCsvIntField(string[] parts, int index)
-        {
-            if (parts.Length == index)
-                return 0;
-
-            var success = int.TryParse(parts[index], out var result);
-            if (!success)
-                return 0;
-
-            return result;
         }
     }
 }
