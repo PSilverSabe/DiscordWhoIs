@@ -8,11 +8,22 @@ namespace DiscordWhoIs.Controllers
 {
     [ApiController]
     [Route("/api/[controller]")]
-    public class FicUpdateController(UploadConfiguration uploadConfiguration, IFanficRepository fanficRepository, IHostEnvironment env) : Controller
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public class FicUpdateController : Controller
     {
-        private readonly UploadConfiguration _uploadConfig = uploadConfiguration;
-        private readonly IFanficRepository _fanficRepository = fanficRepository;
-        private readonly IHostEnvironment _env = env;
+        private readonly UploadConfiguration _uploadConfig;
+        private readonly IFanficRepository _fanficRepository;
+        private readonly IHostEnvironment _env;
+
+        public FicUpdateController(
+            UploadConfiguration uploadConfiguration,
+            IFanficRepository fanficRepository,
+            IHostEnvironment env)
+        {
+            _uploadConfig = uploadConfiguration;
+            _fanficRepository = fanficRepository;
+            _env = env;
+        }
 
         private string GetResolvedUploadDirectory()
         {
@@ -41,11 +52,13 @@ namespace DiscordWhoIs.Controllers
             return Ok(new PingResponse("alive"));
         }
 
+        // Hide only the problematic upload action from ApiExplorer so Swagger/ApiExplorer won't initialize ambiguous metadata for it.
+        [ApiExplorerSettings(IgnoreApi = true)]
         [HttpPost("file")]
         [RequestSizeLimit(100_000_000)]
         public async Task<ActionResult<OperationResult>> UploadUpdatedFanficCsvFile([FromForm] UploadFileRequest request)
         {
-            var file = request.File;
+            var file = request?.File;
             if (file == null || file.Length == 0)
                 return BadRequest(new OperationResult(false, "No file uploaded."));
 

@@ -1,0 +1,44 @@
+# Worker image (trimmed)
+FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+WORKDIR /src
+
+# Build deps
+RUN apk add --no-cache --virtual .build-deps \
+        clang zlib-dev musl-dev icu-dev libgcc libstdc++ bash
+
+# Restore
+COPY ["DiscordWhoIs.Worker/DiscordWhoIs.Worker.csproj", "DiscordWhoIs.Worker/"]
+RUN dotnet restore "DiscordWhoIs.Worker/DiscordWhoIs.Worker.csproj"
+
+# Copy source
+COPY . ./
+WORKDIR "/src/DiscordWhoIs.Worker"
+
+# Publish trimmed worker
+RUN dotnet publish DiscordWhoIs.Worker.csproj \
+    -c Release \
+    -o /app/publish \
+    -r linux-musl-x64 \
+    /p:PublishSingleFile=true \
+    /p:SelfContained=true \
+    /p:PublishTrimmed=true \
+    /p:TrimMode=Link \
+    /p:StripSymbols=true \
+    /p:DebuggerSupport=false \
+ && rm -rf /root/.nuget /src/**/bin /src/**/obj \
+ && apk del .build-deps
+
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-alpine AS final
+WORKDIR /app
+
+# ICU required for globalization
+RUN apk add --no-cache icu-libs
+
+COPY --from=build /app/publish/ .
+
+ARG APP_USER=discordwhois
+RUN adduser --disabled-password --gecos "" $APP_USER
+RUN mkdir -p /databases && chown -R $APP_USER:$APP_USER /databases
+USER $APP_USER
+
+ENTRYPOINT ["./DiscordWhoIs.Worker"]

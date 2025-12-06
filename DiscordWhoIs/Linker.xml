@@ -1,44 +1,36 @@
 ﻿<linker>
+	<!-- Preserve your app's reflection roots -->
 	<assembly fullname="DiscordWhoIs">
-		<!-- Source-generated JsonSerializerContext -->
 		<type fullname="DiscordWhoIs.Databases.Serializers.ConfigurationJsonContext" preserve="all" />
-
-		<!-- Configuration model types used by binding/serialization -->
 		<type fullname="DiscordWhoIs.Configuration.Models.FileLocationConfiguration" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.FandomConfiguration" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.UploadConfiguration" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.DiscordConfiguration" preserve="all" />
-
-		<!-- EF Core DB models used via reflection -->
 		<type fullname="DiscordWhoIs.Databases.DbModels.Alias" preserve="all" />
 		<type fullname="DiscordWhoIs.Databases.DbModels.Fanfic" preserve="all" />
-
-		<!-- Controllers / DI-resolved services that may be reflected -->
 		<type fullname="DiscordWhoIs.Controllers.FicUpdateController" preserve="all" />
-		<type fullname="DiscordWhoIs.Services.BotService" preserve="all" />
-		<type fullname="DiscordWhoIs.Commands.WhoIsCommandModule" preserve="all" />
-		<type fullname="DiscordWhoIs.Commands.AliasCommandModule" preserve="all" />
-
-		<!-- Repositories / stores -->
 		<type fullname="DiscordWhoIs.Databases.Repositories.AliasRepository" preserve="all" />
 		<type fullname="DiscordWhoIs.Databases.Repositories.FanficRepository" preserve="all" />
-
-		<!-- Keep nullable/primitive helpers if used by reflection (conservative) -->
-		<type fullname="System.String" preserve="all" />
 	</assembly>
 
-	<!-- Preserve Discord.Net assemblies used by reflection -->
+	<!-- Exclude MVC trimming by preserving the whole ASP.NET Core MVC surface -->
+	<assembly fullname="Microsoft.AspNetCore.Mvc.Core" preserve="all" />
+	<assembly fullname="Microsoft.AspNetCore.Mvc" preserve="all" />
+	<assembly fullname="Microsoft.AspNetCore.Mvc.Abstractions" preserve="all" />
+	<assembly fullname="Microsoft.AspNetCore.Mvc.ApiExplorer" preserve="all" />
+	<assembly fullname="Microsoft.AspNetCore.Mvc.DataAnnotations" preserve="all" />
+	<assembly fullname="Microsoft.AspNetCore.Routing" preserve="all" />
+	<assembly fullname="Microsoft.AspNetCore.Http" preserve="all" />
+	<assembly fullname="Microsoft.Extensions.Primitives" preserve="all" />
+	<assembly fullname="Microsoft.Extensions.DependencyInjection" preserve="all" />
+
+	<!-- Preserve other assemblies you rely on via reflection -->
 	<assembly fullname="Discord.Net.Interactions" preserve="all"/>
 	<assembly fullname="Discord.Net.Core" preserve="all"/>
 	<assembly fullname="Discord.Net.Rest" preserve="all"/>
 	<assembly fullname="Discord.Net.WebSocket" preserve="all"/>
-	
-	<!-- Preserve Newtonsoft.Json for reflection -->
 	<assembly fullname="Newtonsoft.Json" preserve="all"/>
-	
-	<!-- Preserve Entity Framework Core for reflection -->
 	<assembly fullname="Microsoft.EntityFrameworkCore" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Relational" preserve="all"/>
 	<assembly fullname="Microsoft.EntityFrameworkCore.Sqlite" preserve="all"/>
-
 </linker>

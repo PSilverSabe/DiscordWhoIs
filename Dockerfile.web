@@ -1,0 +1,43 @@
+# Web image (untrimmed)
+FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+WORKDIR /src
+
+# Build deps
+RUN apk add --no-cache --virtual .build-deps \
+        zlib-dev icu-dev libgcc libstdc++ bash
+
+# Restore
+COPY ["DiscordWhoIs.Web/DiscordWhoIs.Web.csproj", "DiscordWhoIs.Web/"]
+RUN dotnet restore "DiscordWhoIs.Web/DiscordWhoIs.Web.csproj"
+
+# Copy source
+COPY . ./
+WORKDIR "/src/DiscordWhoIs.Web"
+
+# Publish web (untrimmed)
+RUN dotnet publish DiscordWhoIs.Web.csproj \
+    -c Release \
+    -o /app/publish \
+    -r linux-musl-x64 \
+    /p:PublishSingleFile=true \
+    /p:SelfContained=true \
+    /p:PublishTrimmed=false \
+    /p:StripSymbols=true \
+    /p:DebuggerSupport=false \
+ && rm -rf /root/.nuget /src/**/bin /src/**/obj \
+ && apk del .build-deps
+
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-alpine AS final
+WORKDIR /app
+
+# ICU required for globalization
+RUN apk add --no-cache icu-libs
+
+COPY --from=build /app/publish/ .
+
+ARG APP_USER=discordwhois
+RUN adduser --disabled-password --gecos "" $APP_USER
+RUN mkdir -p /databases && chown -R $APP_USER:$APP_USER /databases
+USER $APP_USER
+
+ENTRYPOINT ["./DiscordWhoIs.Web"]

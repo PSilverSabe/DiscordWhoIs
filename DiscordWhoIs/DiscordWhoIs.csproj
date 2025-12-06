@@ -1,39 +1,30 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
-		<Nullable>enable</Nullable>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<UserSecretsId>84a934e4-dc2e-441b-9473-13d42b2459d3</UserSecretsId>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Library</OutputType>
 
-		<!-- NativeAOT / Self-contained single-file -->
-		<PublishAot>false</PublishAot>
-		<PublishSingleFile>true</PublishSingleFile>
-		<SelfContained>true</SelfContained>
-		<StripSymbols>true</StripSymbols>
-		<DebuggerSupport>false</DebuggerSupport>
-		<PublishTrimmed>false</PublishTrimmed>
-		<TrimMode>Link</TrimMode>
-		<InvariantGlobalization>false</InvariantGlobalization>
-		<PlatformTarget>AnyCPU</PlatformTarget>
-	</PropertyGroup>
+    <!-- Trimming disabled for aggregator by default -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Discord.Net" Version="3.18.0" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.11" />
-		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
-	</ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="3.18.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.11" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.1" />
+  </ItemGroup>
 
-	<!-- Preserve Discord.NET and Newtonsoft.Json types for reflection -->
-	<ItemGroup>
-		<TrimmerRootDescriptor Include="Linker.xml" />
-	</ItemGroup>
-	<ItemGroup>
-	  <None Update="Linker.xml">
-	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-	  </None>
-	</ItemGroup>
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="Linker.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Linker.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>

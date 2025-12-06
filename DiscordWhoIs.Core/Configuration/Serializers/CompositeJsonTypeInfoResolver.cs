@@ -1,4 +1,4 @@
-namespace DiscordWhoIs.Configuration.Serializers
+namespace DiscordWhoIs.Databases.Serializers
 {
     using System;
     using System.Text.Json;
@@ -15,7 +15,7 @@ namespace DiscordWhoIs.Configuration.Serializers
 
         public CompositeJsonTypeInfoResolver(params IJsonTypeInfoResolver[] resolvers)
         {
-            _resolvers = resolvers ?? [];
+            _resolvers = resolvers ?? Array.Empty<IJsonTypeInfoResolver>();
         }
 
         public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)

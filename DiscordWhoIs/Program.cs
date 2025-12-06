@@ -4,14 +4,10 @@ using Discord.WebSocket;
 using DiscordWhoIs.Commands.Registry;
 using DiscordWhoIs.Configuration;
 using DiscordWhoIs.Configuration.Models;
-using DiscordWhoIs.Databases.DbContexts;
-using DiscordWhoIs.Databases.Interfaces;
-using DiscordWhoIs.Databases.Repositories;
-using DiscordWhoIs.Services;
-using Microsoft.EntityFrameworkCore;
-using DiscordWhoIs.Databases.Serializers;
-using System.Text.Json.Serialization.Metadata;
 using DiscordWhoIs.Controllers.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
+using System.Text.Json.Serialization.Metadata;
 
 namespace DiscordWhoIs
 {
@@ -56,7 +52,17 @@ namespace DiscordWhoIs
                            var env = app.ApplicationServices.GetRequiredService<IHostEnvironment>();
 
                            if (env.IsDevelopment())
+                           {
                                app.UseDeveloperExceptionPage();
+
+                               // Temporarily disable Swagger middleware to avoid ApiExplorer touching controller metadata during file uploads.
+                               // app.UseSwagger();
+                               // app.UseSwaggerUI(c =>
+                               // {
+                               //     c.SwaggerEndpoint("/swagger/v1/swagger.json", "DiscordWhoIs API v1");
+                               //     c.RoutePrefix = "swagger";
+                               // });
+                           }
 
                            app.UseRouting();
                            app.UseEndpoints(endpoints =>
@@ -85,7 +91,7 @@ namespace DiscordWhoIs
                         : Path.Combine(botDbContextConfig.TargetDirectory, botDbContextConfig.FileName) ?? Path.Combine(baseDir, "botdbcontext.sqlite");
 
                     // DbContext factories
-                    services.AddDbContextFactory<BotDbContext>(options =>
+                    services.AddDbContextFactory<DiscordWhoIs.Databases.DbContexts.BotDbContext>(options =>
                         options.UseSqlite($"Data Source={botDbContext}"));
 
                     // Discord Client
@@ -95,11 +101,11 @@ namespace DiscordWhoIs
                     }));
 
                     // Caches & Stores
-                    services.AddSingleton<AliasRepository>();
-                    services.AddSingleton<IAliasRepository>(sp => sp.GetRequiredService<AliasRepository>());
+                    services.AddSingleton<DiscordWhoIs.Databases.Repositories.AliasRepository>();
+                    services.AddSingleton<DiscordWhoIs.Databases.Interfaces.IAliasRepository>(sp => sp.GetRequiredService<DiscordWhoIs.Databases.Repositories.AliasRepository>());
 
-                    services.AddSingleton<FanficRepository>();
-                    services.AddSingleton<IFanficRepository>(sp => sp.GetRequiredService<FanficRepository>());
+                    services.AddSingleton<DiscordWhoIs.Databases.Repositories.FanficRepository>();
+                    services.AddSingleton<DiscordWhoIs.Databases.Interfaces.IFanficRepository>(sp => sp.GetRequiredService<DiscordWhoIs.Databases.Repositories.FanficRepository>());
 
                     // InteractionService
                     services.AddSingleton(sp =>
@@ -112,15 +118,15 @@ namespace DiscordWhoIs
                     services.AddSingleton<CommandRegistry>();
 
                     // Bot Service
-                    services.AddSingleton<BotService>();
+                    services.AddSingleton<DiscordWhoIs.Worker.Services.BotService>();
 
                     // Configure JSON serialization so source-generated contexts are used where available
                     // but primitives and other types still fall back to the default resolver.
-                    var compositeResolver = new CompositeJsonTypeInfoResolver(
-                        ConfigurationJsonContext.Default,
+                    var compositeResolver = new DiscordWhoIs.Databases.Serializers.CompositeJsonTypeInfoResolver(
+                        DiscordWhoIs.Databases.Serializers.ConfigurationJsonContext.Default,
                         new DefaultJsonTypeInfoResolver());
 
-                    // Controllers (MVC) use the composite resolver
+                    // Use the normal AddControllers() overload and wire composite resolver.
                     services.AddControllers()
                             .AddJsonOptions(opts =>
                             {
@@ -133,6 +139,13 @@ namespace DiscordWhoIs
                         opts.SerializerOptions.TypeInfoResolver = compositeResolver;
                     });
 
+                    // Register ApiExplorer / Swagger
+                    services.AddEndpointsApiExplorer();
+                    services.AddSwaggerGen(c =>
+                    {
+                        c.SwaggerDoc("v1", new OpenApiInfo { Title = "DiscordWhoIs API", Version = "v1" });
+                    });
+
                     // Config Bindings
                     services.AddSingleton(fandomConfig);
                     services.AddSingleton(discordConfig);
@@ -143,7 +156,7 @@ namespace DiscordWhoIs
             var host = builder.Build();
 
             // Start Discord bot
-            await host.Services.GetRequiredService<BotService>().StartAsync();
+            await host.Services.GetRequiredService<DiscordWhoIs.Worker.Services.BotService>().StartAsync();
 
             // Start the host (background services, e.g., cache)
             await host.RunAsync();
