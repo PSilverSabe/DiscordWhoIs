@@ -4,7 +4,7 @@ using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.Repositories;
 using DiscordWhoIs.Databases.Serializers;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using System.Text.Json.Serialization.Metadata;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,10 +51,6 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(opts =>
     opts.SerializerOptions.TypeInfoResolver = compositeResolver;
 });
 
-// Swagger
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "DiscordWhoIs API", Version = "v1" }));
-
 // Configs
 builder.Services.AddSingleton(fandomConfig);
 builder.Services.AddSingleton(discordConfig);
@@ -83,8 +79,6 @@ app.Use(async (http, next) =>
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI();
 }
 
 app.UseRouting();

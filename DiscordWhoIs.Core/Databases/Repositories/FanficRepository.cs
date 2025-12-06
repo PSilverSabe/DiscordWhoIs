@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.DbModels;
 using DiscordWhoIs.Databases.Interfaces;

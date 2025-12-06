@@ -6,8 +6,9 @@ using DiscordWhoIs.Configuration;
 using DiscordWhoIs.Configuration.Models;
 using DiscordWhoIs.Databases.DbContexts;
 using DiscordWhoIs.Databases.Repositories;
-using DiscordWhoIs.Services;
+using DiscordWhoIs.Worker.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((context, config) =>

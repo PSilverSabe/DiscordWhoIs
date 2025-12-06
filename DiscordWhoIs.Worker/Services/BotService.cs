@@ -3,7 +3,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordWhoIs.Commands.Registry;
 using DiscordWhoIs.Configuration.Models;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using System.Reflection;
 
 namespace DiscordWhoIs.Worker.Services

@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DiscordWhoIs.Core\DiscordWhoIs.Core.csproj" />
+    <ProjectReference Include="..\DiscordWhoIs\DiscordWhoIs.csproj" />
   </ItemGroup>
 
   <ItemGroup>
