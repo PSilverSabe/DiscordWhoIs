@@ -1,6 +1,7 @@
 ﻿using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Core.Filters;
+using DiscordWhoIs.Core.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Files = System.IO.File;
 
@@ -15,25 +16,12 @@ namespace DiscordWhoIs.Web.Controllers
         private readonly IFanficRepository _fanficRepository = fanficRepository;
         private readonly IHostEnvironment _env = env;
 
-        private string GetResolvedUploadDirectory()
-        {
-            if (_env.IsDevelopment())
-            {
-                return Path.Combine(AppContext.BaseDirectory, _uploadConfig.TargetDirectory);
-            }
-
-            // In production the configured TargetDirectory is the directory where files live
-            return _uploadConfig.TargetDirectory;
-        }
-
         private string GetResolvedUploadFilePath()
         {
-            if (_env.IsDevelopment())
-            {
-                return Path.Combine(AppContext.BaseDirectory, _uploadConfig.TargetDirectory, _uploadConfig.FileName);
-            }
-
-            return Path.Combine(_uploadConfig.TargetDirectory, _uploadConfig.FileName);
+            return PathResolver.ResolvePath(
+                _uploadConfig.TargetDirectory,
+                _uploadConfig.FileName ?? "fanfic_updates.csv"
+            );
         }
 
         [HttpGet("ping")]
@@ -47,14 +35,11 @@ namespace DiscordWhoIs.Web.Controllers
         public async Task<IActionResult> UploadUpdatedFanficCsvFile(IFormFile file)
         {
             if (file == null || file.Length == 0)
-            {
                 return BadRequest("No file uploaded.");
-            }
 
             try
             {
-                var uploadDir = GetResolvedUploadDirectory();
-                Directory.CreateDirectory(uploadDir);
+                Directory.CreateDirectory(Path.GetDirectoryName(GetResolvedUploadFilePath())!);
 
                 var filePath = GetResolvedUploadFilePath();
                 await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -76,9 +61,7 @@ namespace DiscordWhoIs.Web.Controllers
             var filePath = GetResolvedUploadFilePath();
 
             if (!Files.Exists(filePath))
-            {
                 return NotFound("CSV file not found.");
-            }
 
             try
             {

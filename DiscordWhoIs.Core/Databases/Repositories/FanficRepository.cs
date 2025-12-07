@@ -1,11 +1,9 @@
 ﻿using CsvHelper;
-using CsvHelper.Configuration;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Concurrent;
 using System.Globalization;
 
@@ -15,7 +13,6 @@ namespace DiscordWhoIs.Core.Databases.Repositories
     {
         private readonly IDbContextFactory<BotDbContext> _dbContextFactory;
         private readonly ILogger<FanficRepository> _logger;
-        private readonly ConcurrentDictionary<string, Fanfic> _store = new(StringComparer.OrdinalIgnoreCase);
         public FanficRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<FanficRepository> logger)
         {
             _dbContextFactory = dbContextFactory;
@@ -25,9 +22,7 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             try
             {
                 context.Database.EnsureCreated(); // Creates DB + Aliases table if missing
-
                 // Load existing fanfics
-                SetLocalStore(context);
                 context.Dispose();
             }
             catch (Exception ex)
@@ -40,26 +35,30 @@ namespace DiscordWhoIs.Core.Databases.Repositories
 
         public Task<IReadOnlyList<Fanfic>> GetAllAsync()
         {
-            return Task.FromResult((IReadOnlyList<Fanfic>)[.. _store.Values]);
+            using var context = _dbContextFactory.CreateDbContext();
+            IReadOnlyList<Fanfic> results = [.. context.Fanfics.AsNoTracking()];
+            return Task.FromResult(results);
         }
 
         public Task<IReadOnlyList<Fanfic>> GetAllByAuthorAsync(string author)
         {
-            IReadOnlyList<Fanfic> directSearch = [.. _store.Values.Where(f => f.Author.Equals(author, StringComparison.OrdinalIgnoreCase))];
-            IReadOnlyList<Fanfic> pseudSearch = [.. _store.Values.Where(f => f.Author.Contains($"({author})", StringComparison.OrdinalIgnoreCase))];
-            IReadOnlyList<Fanfic> results = [..directSearch, ..pseudSearch];
-
+            using var context = _dbContextFactory.CreateDbContext();
+            IReadOnlyList<Fanfic> results = [.. context.Fanfics.AsNoTracking()
+                                                .Where(f => f.Author.ToLower() == author.ToLower() 
+                                                            || f.Author.ToLower().Contains(author.ToLower()))];
             return Task.FromResult(results);
         }
 
         public Task<Fanfic?> GetByIdAsync(int id)
         {
-            return Task.FromResult(_store.Values.FirstOrDefault(f => f.Id == id));
+            using var context = _dbContextFactory.CreateDbContext();
+            return Task.FromResult(context.Fanfics.AsNoTracking().FirstOrDefault(f => f.Id == id));
         }
 
         public Task<Fanfic?> GetByTitleAsync(string title)
         {
-            return Task.FromResult(_store.TryGetValue(title, out var fanfic) ? fanfic : null);
+            using var context = _dbContextFactory.CreateDbContext();
+            return Task.FromResult(context.Fanfics.AsNoTracking().FirstOrDefault(f => f.Title == title));
         }
 
         public Task<bool> ImportFromCsvAsync(string csvFileName)
@@ -71,8 +70,8 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             }
 
             var parsedContent = new List<Fanfic>();
-            using(var reader = new StreamReader(csvFileName))
-            using(var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
+            using (var reader = new StreamReader(csvFileName))
+            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
             {
                 parsedContent.AddRange(csv.GetRecords<Fanfic>());
             }
@@ -86,10 +85,10 @@ namespace DiscordWhoIs.Core.Databases.Repositories
 
             try
             {
-                var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Title, StringComparer.OrdinalIgnoreCase);
+                var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Link, StringComparer.OrdinalIgnoreCase);
                 foreach (var fanfic in parsedContent)
                 {
-                    if (existingFanfics.TryGetValue(fanfic.Title, out Fanfic? existingFanfic))
+                    if (existingFanfics.TryGetValue(fanfic.Link, out Fanfic? existingFanfic))
                     {
                         fanfic.Id = existingFanfic.Id; // Preserve the ID for update
                         context.Entry(existingFanfic).CurrentValues.SetValues(fanfic);
@@ -102,7 +101,6 @@ namespace DiscordWhoIs.Core.Databases.Repositories
                 }
 
                 context.SaveChanges();
-                SetLocalStore(context);
                 context.Dispose();
             }
             catch (Exception ex)
@@ -111,17 +109,7 @@ namespace DiscordWhoIs.Core.Databases.Repositories
                 Console.WriteLine(ex);
             }
 
-            return Task.FromResult(true); 
-        }
-
-        private void SetLocalStore<T>(T dbContext) 
-            where T : BotDbContext
-        {
-            // Load existing fanfics
-            foreach (var entry in dbContext.Fanfics.AsNoTracking())
-            {
-                _store[entry.Title] = entry;
-            }
+            return Task.FromResult(true);
         }
     }
 }
