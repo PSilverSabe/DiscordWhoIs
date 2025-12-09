@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <UserSecretsId>6d51e116-b485-451a-8e50-14788ee6e5a6</UserSecretsId>
   </PropertyGroup>

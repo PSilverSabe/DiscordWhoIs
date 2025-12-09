@@ -52,9 +52,6 @@
         [Name("fic_last_updated")]
         public required DateTime FicLastUpdated { get; set; }
 
-        [Name("last_seen_page")]
-        public required int LastSeenPage { get; set; }
-
         [Name("date_added")]
         public required DateTime DateAdded { get; set; }
 

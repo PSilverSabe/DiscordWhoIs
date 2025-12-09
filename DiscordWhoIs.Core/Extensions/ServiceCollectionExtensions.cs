@@ -32,8 +32,18 @@ namespace DiscordWhoIs.Core.Extensions
             // Register DbContextFactory in Core so both Web and Worker can create contexts safely
             services.AddDbContextFactory<BotDbContext>(options =>
             {
-                options.UseSqlite($"Data Source={botDbPath}");
+                options.UseSqlite(
+                    $"Data Source={botDbPath}",
+                    x => x.MigrationsAssembly(typeof(BotDbContext).Assembly.FullName)
+                );
             });
+
+            using (var scope = services.BuildServiceProvider().CreateScope())
+            {
+                var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<BotDbContext>>();
+                using var dbContext = dbContextFactory.CreateDbContext();
+                dbContext.Database.Migrate();
+            }
 
             // Repositories with DB interaction
             services.AddSingleton<IFanficRepository, FanficRepository>();

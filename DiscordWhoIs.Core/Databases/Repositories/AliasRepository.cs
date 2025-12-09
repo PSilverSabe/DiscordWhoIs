@@ -22,7 +22,7 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             using var context = _dbContextFactory.CreateDbContext();
             try
             {
-                context.Database.EnsureCreated(); // Creates DB + Aliases table if missing
+                context.Database.Migrate(); // Creates DB + Aliases table if missing
 
                 // Load existing aliases
                 foreach (var entry in context.Aliases.AsNoTracking())
