@@ -45,6 +45,7 @@ IHost host = Host.CreateDefaultBuilder(args)
 
         // Command registry and bot service
         services.AddSingleton<CommandRegistry>();
+        services.AddSingleton<ActiveUsersCacheService>();
         services.AddSingleton<BotService>();
 
         // Background worker wrapper that runs the bot

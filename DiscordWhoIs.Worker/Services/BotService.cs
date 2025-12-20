@@ -19,6 +19,7 @@ namespace DiscordWhoIs.Worker.Services
         private readonly ILogger<BotService> _logger;
         private readonly IServiceProvider _services;
         private readonly DiscordConfiguration _discordConfig;
+        private readonly ActiveUsersCacheService _cache;
 
         public BotService(
             DiscordSocketClient client,
@@ -26,7 +27,8 @@ namespace DiscordWhoIs.Worker.Services
             CommandRegistry registry,
             IServiceProvider services,
             ILogger<BotService> logger,
-            DiscordConfiguration discordOptions)
+            DiscordConfiguration discordOptions,
+            ActiveUsersCacheService cache)
         {
             _client = client;
             _interactions = interactions;
@@ -34,17 +36,25 @@ namespace DiscordWhoIs.Worker.Services
             _services = services;
             _logger = logger;
             _discordConfig = discordOptions;
+            _cache = cache;
 
             _client.Log += LogAsync;
             _client.Ready += OnReadyAsync;
             _client.InteractionCreated += HandleInteractionAsync;
             _client.JoinedGuild += OnJoinedGuildAsync; // auto-register commands for new guilds
+            _client.MessageReceived += OnMessageReceivedAsync;
         }
 
         public async Task StartAsync()
         {
             await _client.LoginAsync(TokenType.Bot, _discordConfig.Token);
             await _client.StartAsync();
+        }
+
+        private Task OnMessageReceivedAsync(SocketMessage message)
+        {
+            _cache.AddMessage(message);
+            return Task.CompletedTask;
         }
 
         /// <summary>

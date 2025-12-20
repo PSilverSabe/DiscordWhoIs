@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 
 namespace DiscordWhoIs.Worker.Commands
 {
-
     public class PurgeCommandModule
         : InteractionModuleBase<SocketInteractionContext>
     {
         private const int MaxPurge = 100;
         private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan EphemeralLifetime = TimeSpan.FromSeconds(5);
 
         [SlashCommand("purge", "Bulk delete messages (optionally from a specific user)")]
         [DefaultMemberPermissions(GuildPermission.ManageMessages)]
@@ -71,6 +71,10 @@ namespace DiscordWhoIs.Worker.Commands
                 $"⚠️ **Confirm purge**\n{description}\n\n⏱ Expires in {ConfirmationTimeout.Seconds}s.",
                 components: components,
                 ephemeral: true);
+
+            await Task.Delay(EphemeralLifetime);
+
+            await Context.Interaction.DeleteOriginalResponseAsync();
         }
 
         [ComponentInteraction("purge_confirm:*")]
@@ -124,9 +128,10 @@ namespace DiscordWhoIs.Worker.Commands
 
             if (!toDelete.Any())
             {
-                await FollowupAsync(
+                IUserMessage msg = await FollowupAsync(
                     "No messages eligible for deletion (14-day limit).",
                     ephemeral: true);
+                _ = DeleteAfterDelay(msg);
 
                 await DisableComponentsAsync("Nothing to delete.");
                 return;
@@ -134,9 +139,10 @@ namespace DiscordWhoIs.Worker.Commands
 
             await channel.DeleteMessagesAsync(toDelete);
 
-            await FollowupAsync(
+            IUserMessage followUp = await FollowupAsync(
                 $"Deleted **{toDelete.Count} messages**.",
                 ephemeral: true);
+            _ = DeleteAfterDelay(followUp);
 
             await DisableComponentsAsync("✅ Purge completed.");
         }
@@ -184,6 +190,27 @@ namespace DiscordWhoIs.Worker.Commands
                 m.Content = message;
                 m.Components = disabled;
             });
+
+            // Fetch the modified original response and delete after 5 seconds
+            var msg = await Context.Interaction.GetOriginalResponseAsync() as IUserMessage;
+            if (msg != null)
+                _ = DeleteAfterDelay(msg);
+        }
+
+        // ------------------------------
+        // Helper to delete ephemeral messages after 5 seconds
+        // ------------------------------
+        private static async Task DeleteAfterDelay(IUserMessage message)
+        {
+            try
+            {
+                await Task.Delay(EphemeralLifetime);
+                await message.DeleteAsync();
+            }
+            catch
+            {
+                // Ignore errors if already deleted
+            }
         }
     }
 }

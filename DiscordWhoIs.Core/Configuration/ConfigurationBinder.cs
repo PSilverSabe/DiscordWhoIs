@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Configuration;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DiscordWhoIs.Core.Configuration
