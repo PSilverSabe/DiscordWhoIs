@@ -74,8 +74,9 @@ namespace DiscordWhoIs.Worker.Commands
         }
 
         [ComponentInteraction("purge_confirm:*")]
-        public async Task ConfirmPurgeAsync(string[] args)
+        public async Task ConfirmPurgeAsync(string data)
         {
+            var args = data.Split(':');
             if (!HasManageMessages())
             {
                 await RespondAsync(
@@ -141,8 +142,9 @@ namespace DiscordWhoIs.Worker.Commands
         }
 
         [ComponentInteraction("purge_cancel:*")]
-        public async Task CancelPurgeAsync(string[] args)
+        public async Task CancelPurgeAsync(string data)
         {
+            var args = data.Split(':');
             var moderatorId = ulong.Parse(args[0]);
             var expiresAt =
                 DateTimeOffset.FromUnixTimeSeconds(long.Parse(args[1]));
