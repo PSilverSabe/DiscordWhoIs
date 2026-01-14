@@ -11,6 +11,8 @@ namespace DiscordWhoIs.Core.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("PRAGMA foreign_keys = 0;", suppressTransaction: true);
+
             migrationBuilder.DropPrimaryKey(
                 name: "PK_Fanfics",
                 table: "Fanfics");
@@ -148,6 +150,8 @@ namespace DiscordWhoIs.Core.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("PRAGMA foreign_keys = 1;", suppressTransaction: true);
+
             migrationBuilder.DropForeignKey(
                 name: "FK_Alias_Authors_AuthorId",
                 table: "Alias");
