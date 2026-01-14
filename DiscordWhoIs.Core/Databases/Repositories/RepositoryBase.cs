@@ -13,19 +13,6 @@ namespace DiscordWhoIs.Core.Databases.Repositories
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
-
-            // Initialize DB and run migrations
-            using var context = _dbContextFactory.CreateDbContext();
-            try
-            {
-                context.Database.Migrate(); // Ensures DB + tables exist
-                _logger.LogInformation("Database migration complete.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
-                Console.WriteLine(ex);
-            }
         }
 
         /// <summary>
