@@ -59,7 +59,7 @@ namespace DiscordWhoIs.Core.Migrations
                     b.Property<int>("ChapterCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("CommentCount")
+                    b.Property<int>("CommentsCount")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("DateAdded")

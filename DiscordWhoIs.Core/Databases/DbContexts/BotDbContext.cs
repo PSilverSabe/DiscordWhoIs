@@ -1,4 +1,5 @@
-﻿using DiscordWhoIs.Core.Databases.DbModels;
+﻿using DiscordWhoIs.Core.Configuration.Models;
+using DiscordWhoIs.Core.Databases.DbModels;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
 
@@ -13,6 +14,8 @@ namespace DiscordWhoIs.Core.Databases.DbContexts
 
         public DbSet<Fanfic> Fanfics { get; set; } = null!;
 
+        public DbSet<Author> Authors { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -21,14 +24,22 @@ namespace DiscordWhoIs.Core.Databases.DbContexts
             {
                 entity.HasKey(e => e.AliasUserName);
                 entity.Property(e => e.AliasUserName).IsRequired().HasMaxLength(256);
-                entity.Property(e => e.RealUserName).IsRequired().HasMaxLength(256);
+                entity.HasOne(e => e.Author).WithMany(a => a.Aliases).HasForeignKey(e => e.AuthorId);
             });
 
             modelBuilder.Entity<Fanfic>(entity =>
             {
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).IsRequired().HasMaxLength(64);
+                entity.HasKey(e => e.FanficId);
                 entity.Property(e => e.Link).IsRequired();
+                entity.HasMany(e => e.Authors).WithMany(a => a.Fanfics);
+            });
+
+            modelBuilder.Entity<Author>(entity =>
+            {
+                entity.HasKey(e => e.AuthorId);
+                entity.Property(e => e.Ao3ProfileName).IsRequired().HasMaxLength(256);
+                entity.Property(e => e.FanficNetProfileName).HasMaxLength(256);
+                entity.HasMany(e => e.Fanfics).WithMany(f => f.Authors);
             });
         }
     }

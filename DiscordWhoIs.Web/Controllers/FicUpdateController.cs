@@ -20,7 +20,7 @@ namespace DiscordWhoIs.Web.Controllers
         {
             return PathResolver.ResolvePath(
                 _uploadConfig.TargetDirectory,
-                _uploadConfig.FileName ?? "fanfic_updates.csv"
+                _uploadConfig.FileName ?? "fanfic_updates.json"
             );
         }
 
@@ -32,7 +32,7 @@ namespace DiscordWhoIs.Web.Controllers
 
         [HttpPost("file")]
         [RequestSizeLimit(100_000_000)]
-        public async Task<IActionResult> UploadUpdatedFanficCsvFile(IFormFile file)
+        public async Task<IActionResult> UploadUpdatedFanficJsonFile(IFormFile file)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("No file uploaded.");
@@ -56,16 +56,16 @@ namespace DiscordWhoIs.Web.Controllers
         }
 
         [HttpPost("update")]
-        public async Task<IActionResult> UpdateDatabaseFromCsvFile()
+        public async Task<IActionResult> UpdateDatabaseFromJsonFile()
         {
             var filePath = GetResolvedUploadFilePath();
 
             if (!Files.Exists(filePath))
-                return NotFound("CSV file not found.");
+                return NotFound("JSON file not found.");
 
             try
             {
-                await _fanficRepository.ImportFromCsvAsync(filePath);
+                await _fanficRepository.ImportFromJsonAsync(filePath);
             }
             catch (Exception ex)
             {
@@ -74,7 +74,7 @@ namespace DiscordWhoIs.Web.Controllers
                     : StatusCode(500, "Internal server error while updating the database.");
             }
 
-            return Ok("Database updated successfully from CSV file.");
+            return Ok("Database updated successfully from JSON file.");
         }
     }
 }

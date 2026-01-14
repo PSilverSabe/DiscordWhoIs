@@ -3,38 +3,26 @@ using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
 
 namespace DiscordWhoIs.Core.Databases.Repositories
 {
-    public class AliasRepository : IAliasRepository
+    public class AliasRepository : RepositoryBase<BotDbContext, AliasRepository>, IAliasRepository
     {
-        private readonly IDbContextFactory<BotDbContext> _dbContextFactory;
-        private readonly ILogger<AliasRepository> _logger;
         private readonly ConcurrentDictionary<string, Alias> _store = new(StringComparer.OrdinalIgnoreCase);
         private readonly SemaphoreSlim _dbLock = new(1, 1);
 
         public AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<AliasRepository> logger)
+            : base(dbContextFactory, logger)
         {
-            _dbContextFactory = dbContextFactory;
-            _logger = logger;
-
+            // Load existing aliases from DB into in-memory store
             using var context = _dbContextFactory.CreateDbContext();
-            try
+            foreach (var entry in context.Aliases.Include(x => x.Author).AsNoTracking())
             {
-                context.Database.Migrate(); // Creates DB + Aliases table if missing
-
-                // Load existing aliases
-                foreach (var entry in context.Aliases.AsNoTracking())
-                {
-                    _store[entry.AliasUserName] = entry;
-                }
+                _store[entry.AliasUserName] = entry;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
-                Console.WriteLine(ex);
-            }
+            _logger.LogInformation("Loaded {Count} aliases into memory.", _store.Count);
         }
 
         public Task<IReadOnlyList<Alias>> GetAllAsync()
@@ -53,7 +41,7 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             var hasAlias = _store.TryGetValue(alias.Trim(), out var entry);
             if (hasAlias && entry != null)
             {
-                real = entry.RealUserName;
+                real = entry.Author.Ao3ProfileName;
             }
 
 
@@ -84,20 +72,23 @@ namespace DiscordWhoIs.Core.Databases.Repositories
                 await using var context = await _dbContextFactory.CreateDbContextAsync();
 
                 var existing = await context.Aliases.FindAsync(alias);
+                var authorEntity = await context.Authors.FirstOrDefaultAsync(a => a.Ao3ProfileName == real) 
+                    ?? throw new InvalidOperationException($"No author found with AO3 profile name '{real}'. Cannot create alias.");
+
                 if (existing != null)
                 {
-                    existing.RealUserName = real;
+                    existing.Author.Ao3ProfileName = real;
                     context.Aliases.Update(existing);
                 }
                 else
                 {
-                    var newEntry = new Alias(alias, real);
+                    var newEntry = new Alias(alias, authorEntity.AuthorId);
                     await context.Aliases.AddAsync(newEntry);
                 }
 
-                await context.SaveChangesAsync();
+                await SaveChangesAsync(context);
 
-                _store[alias] = new Alias(alias, real);
+                _store[alias] = new Alias(alias, authorEntity.AuthorId);
                 _logger.LogInformation("Added/updated alias {Alias} -> {RealUserName}", alias, real ?? "<none>");
             }
             finally
@@ -119,7 +110,7 @@ namespace DiscordWhoIs.Core.Databases.Repositories
                 if (entity != null)
                 {
                     context.Aliases.Remove(entity);
-                    await context.SaveChangesAsync();
+                    await SaveChangesAsync(context);
 
                     _store.TryRemove(alias, out _);
                     _logger.LogInformation("Removed alias {Alias} from DB", alias);

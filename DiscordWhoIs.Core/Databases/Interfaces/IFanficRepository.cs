@@ -1,4 +1,5 @@
-﻿using DiscordWhoIs.Core.Databases.DbModels;
+﻿using DiscordWhoIs.Core.Configuration.Models;
+using DiscordWhoIs.Core.Databases.DbModels;
 
 namespace DiscordWhoIs.Core.Databases.Interfaces
 {
@@ -10,6 +11,6 @@ namespace DiscordWhoIs.Core.Databases.Interfaces
 
         Task<Fanfic?> GetByIdAsync(int id);
 
-        Task<bool> ImportFromCsvAsync(string csvFileName);
+        Task<bool> ImportFromJsonAsync(string jsonFileName);
     }
 }

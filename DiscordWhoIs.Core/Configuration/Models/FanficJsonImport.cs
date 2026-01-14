@@ -1,17 +1,20 @@
-﻿namespace DiscordWhoIs.Core.Databases.DbModels
-{
-    using Microsoft.EntityFrameworkCore.Metadata;
-    using System.ComponentModel.DataAnnotations;
-    using System.ComponentModel.DataAnnotations.Schema;
+﻿using System.ComponentModel.DataAnnotations;
+using DiscordWhoIs.Core.Configuration.JsonConverters;
+using System.Text.Json.Serialization;
 
-    public class Fanfic
+
+namespace DiscordWhoIs.Core.Configuration.Models
+{
+    public class FanficJsonImport
     {
-        [Key]
-        public int FanficId { get; set; }
+        public int Id { get; set; }
 
         public required string Link { get; set; } = null!;
 
         public required string Title { get; set; } = null!;
+
+        [JsonConverter(typeof(EmbeddedJsonStringConverter<List<string>>))]
+        public required List<string> Authors { get; set; } = null!;
 
         public required string Summary { get; set; } = null!;
 
@@ -19,13 +22,13 @@
 
         public required int HitCount { get; set; }
 
-        public required int CommentCount { get; set; }
+        public required int CommentsCount { get; set; }
 
         public required int KudosCount { get; set; }
 
         public required int BookmarksCount { get; set; }
 
-        public required int ChapterCount { get; set; }
+        public required int ChaptersCount { get; set; }
 
         public required string Rating { get; set; } = null!;
 
@@ -33,12 +36,11 @@
 
         public required string Category { get; set; } = null!;
 
+        [JsonConverter(typeof(Ao3LastUpdateConverter))]
         public required DateTime FicLastUpdated { get; set; }
 
         public required DateTime DateAdded { get; set; }
 
         public required DateTime DateUpdated { get; set; }
-
-        public virtual ICollection<Author> Authors { get; set; } = [];
     }
 }

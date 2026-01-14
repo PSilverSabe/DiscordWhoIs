@@ -7,16 +7,18 @@
     {
         public Alias() { }
 
-        public Alias(string alias, string real)
+        public Alias(string alias, int authorId)
         {
             AliasUserName = alias ?? throw new ArgumentNullException(nameof(alias));
-            RealUserName = real ?? throw new ArgumentNullException(nameof(real));
+            AuthorId = authorId;
         }
 
-        [Column("Alias")]
+        [Column("AliasName")]
         public string AliasUserName { get; set; } = null!;
 
-        [Column("Real")]
-        public string RealUserName { get; set; } = null!;
+        [Column("AuthorId")]
+        public int AuthorId { get; set; }
+
+        public virtual Author Author { get; set; } = null!;
     }
 }

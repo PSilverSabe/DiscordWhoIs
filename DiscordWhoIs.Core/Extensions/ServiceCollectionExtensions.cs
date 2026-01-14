@@ -27,7 +27,7 @@ namespace DiscordWhoIs.Core.Extensions
 
             string uploadFilePath = PathResolver.ResolvePath(
                 uploadConfig.TargetDirectory,
-                uploadConfig.FileName ?? "fanfic_updates.csv");
+                uploadConfig.FileName ?? "fanfic_updates.json");
 
             // Register DbContextFactory in Core so both Web and Worker can create contexts safely
             services.AddDbContextFactory<BotDbContext>(options =>

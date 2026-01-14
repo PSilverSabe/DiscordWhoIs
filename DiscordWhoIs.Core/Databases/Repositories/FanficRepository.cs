@@ -1,36 +1,25 @@
-﻿using CsvHelper;
+﻿using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace DiscordWhoIs.Core.Databases.Repositories
 {
-    public class FanficRepository : IFanficRepository
+    public class FanficRepository : RepositoryBase<BotDbContext, FanficRepository>, IFanficRepository
     {
-        private readonly IDbContextFactory<BotDbContext> _dbContextFactory;
-        private readonly ILogger<FanficRepository> _logger;
-        public FanficRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<FanficRepository> logger)
+        private readonly JsonSerializerOptions options = new()
         {
-            _dbContextFactory = dbContextFactory;
-            _logger = logger;
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        };
 
-            using var context = _dbContextFactory.CreateDbContext();
-            try
-            {
-                context.Database.Migrate(); // Creates DB + Aliases table if missing
-                // Load existing fanfics
-                context.Dispose();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
-                Console.WriteLine(ex);
-            }
+        public FanficRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<FanficRepository> logger)
+            : base(dbContextFactory, logger)
+        {
         }
-
 
         public Task<IReadOnlyList<Fanfic>> GetAllAsync()
         {
@@ -42,16 +31,17 @@ namespace DiscordWhoIs.Core.Databases.Repositories
         public Task<IReadOnlyList<Fanfic>> GetAllByAuthorAsync(string author)
         {
             using var context = _dbContextFactory.CreateDbContext();
-            IReadOnlyList<Fanfic> results = [.. context.Fanfics.AsNoTracking()
-                                                .Where(f => f.Author.ToLower() == author.ToLower() 
-                                                            || f.Author.ToLower().Contains(author.ToLower()))];
+            IReadOnlyList<Fanfic> results = [..
+                context.Fanfics.AsNoTracking().Include(author)
+                .Where(x => x.Authors.Any(f => f.Ao3ProfileName.Equals(author, StringComparison.CurrentCultureIgnoreCase)
+                                                    || f.Ao3ProfileName.Contains(author, StringComparison.CurrentCultureIgnoreCase)))];
             return Task.FromResult(results);
         }
 
         public Task<Fanfic?> GetByIdAsync(int id)
         {
             using var context = _dbContextFactory.CreateDbContext();
-            return Task.FromResult(context.Fanfics.AsNoTracking().FirstOrDefault(f => f.Id == id));
+            return Task.FromResult(context.Fanfics.AsNoTracking().FirstOrDefault(f => f.FanficId == id));
         }
 
         public Task<Fanfic?> GetByTitleAsync(string title)
@@ -60,22 +50,20 @@ namespace DiscordWhoIs.Core.Databases.Repositories
             return Task.FromResult(context.Fanfics.AsNoTracking().FirstOrDefault(f => f.Title == title));
         }
 
-        public Task<bool> ImportFromCsvAsync(string csvFileName)
+        public Task<bool> ImportFromJsonAsync(string jsonFileName)
         {
-            var csvFileExists = File.Exists(csvFileName);
-            if (!csvFileExists)
+            var jsonFileExists = File.Exists(jsonFileName);
+            if (!jsonFileExists)
             {
                 return Task.FromResult(false);
             }
 
-            var parsedContent = new List<Fanfic>();
-            using (var reader = new StreamReader(csvFileName))
-            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
-            {
-                parsedContent.AddRange(csv.GetRecords<Fanfic>());
-            }
 
-            if (parsedContent.Count == 0)
+            using FileStream stream = File.OpenRead(jsonFileName);
+            var parsedContent = JsonSerializer.Deserialize<List<FanficJsonImport>>(stream, options);
+            stream.Dispose();
+
+            if (parsedContent == null || parsedContent.Count == 0)
             {
                 return Task.FromResult(false);
             }
@@ -84,12 +72,69 @@ namespace DiscordWhoIs.Core.Databases.Repositories
 
             try
             {
-                var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Link, StringComparer.OrdinalIgnoreCase);
-                foreach (var fanfic in parsedContent)
+                var existingAuthors = context.Authors.AsNoTracking().ToDictionary(a => a.Ao3ProfileName, StringComparer.OrdinalIgnoreCase);
+                var fileAuthors = parsedContent
+                    .SelectMany(f => f.Authors)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                foreach (var authorName in fileAuthors)
                 {
+                    // Add any missing authors
+                    // Differs from Fanfic Import because here we only have profile names to go on
+                    // TODO: Handle Fanfic.net authors too
+                    if (!existingAuthors.TryGetValue(authorName, out var parsedAuthorName))
+                    {
+                        context.Add(new Author()
+                        {
+                            Ao3ProfileName = authorName,
+                            CreatedAt = DateTime.UtcNow,
+                            LastUpdatedAt = DateTime.UtcNow,
+                            LastActiveAt = DateTime.UtcNow
+                        });// New author
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
+                Console.WriteLine(ex);
+            }
+
+            SaveChanges(context);
+
+            try
+            {
+                // Pre-fetch existing fanfics and authors to minimize DB queries
+                var existingFanfics = context.Fanfics.AsNoTracking().ToDictionary(f => f.Link, StringComparer.OrdinalIgnoreCase);
+                var existingAuthors = context.Authors.AsNoTracking().ToDictionary(a => a.Ao3ProfileName, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var parsedFanfic in parsedContent)
+                {
+                    // Map parsedFanfic to database Fanfic model
+                    var fanfic = MapJsonFanficToDatabaseFanfic(parsedFanfic);
+                    // Map Recorded Authors to existing Author entities
+                    // This assumes that all authors have been pre-imported, either via previous runs or the author import logic above
+                    var fanficAuthors = existingAuthors
+                                            .Where(a => parsedFanfic.Authors.Contains(a.Key, StringComparer.OrdinalIgnoreCase))
+                                            .Select(x => x.Value.AuthorId)
+                                            .Select(id => context.Authors.Find(id)!).ToList();
+
+                    // Update LastUpdatedAt for each author
+                    foreach (var author in fanficAuthors)
+                    {
+                        author.LastUpdatedAt = DateTime.UtcNow;
+                        context.Entry(author).CurrentValues.SetValues(author);
+                    }
+                    fanfic.Authors = fanficAuthors;
+
+
+                    // Upsert fanfic logic
+                    // Check if fanfic with same Link exists, links are unique so we can use that to identify between imports
+                    // If it exists, update the existing entry
+                    // If not, add a new entry
                     if (existingFanfics.TryGetValue(fanfic.Link, out Fanfic? existingFanfic))
                     {
-                        fanfic.Id = existingFanfic.Id; // Preserve the ID for update
+                        fanfic.FanficId = existingFanfic.FanficId; // Preserve the ID for update
                         context.Entry(existingFanfic).CurrentValues.SetValues(fanfic);
                     }
                     else
@@ -99,16 +144,41 @@ namespace DiscordWhoIs.Core.Databases.Repositories
                     }
                 }
 
-                context.SaveChanges();
-                context.Dispose();
+                SaveChanges(context);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
                 Console.WriteLine(ex);
             }
+            finally
+            {
+                context.Dispose();
+            }
 
             return Task.FromResult(true);
+        }
+
+        private static Fanfic MapJsonFanficToDatabaseFanfic(FanficJsonImport fanficJsonImport)
+        {
+            return new Fanfic()
+            {
+                Link = fanficJsonImport.Link,
+                Title = fanficJsonImport.Title,
+                Summary = fanficJsonImport.Summary,
+                WordCount = fanficJsonImport.WordCount,
+                HitCount = fanficJsonImport.HitCount,
+                CommentCount = fanficJsonImport.CommentsCount,
+                KudosCount = fanficJsonImport.KudosCount,
+                BookmarksCount = fanficJsonImport.BookmarksCount,
+                ChapterCount = fanficJsonImport.ChaptersCount,
+                Rating = fanficJsonImport.Rating,
+                Warnings = fanficJsonImport.Warnings,
+                Category = fanficJsonImport.Category,
+                FicLastUpdated = fanficJsonImport.FicLastUpdated,
+                DateAdded = fanficJsonImport.DateAdded,
+                DateUpdated = fanficJsonImport.DateUpdated
+            };
         }
     }
 }

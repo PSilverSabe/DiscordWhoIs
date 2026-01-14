@@ -127,7 +127,7 @@ namespace DiscordWhoIs.Worker.Commands
             }
 
             var entries = _store.GetAllAsync()
-                .Result.Select(e => $"{e.AliasUserName} -> {e.RealUserName}")
+                .Result.Select(e => $"{e.AliasUserName} -> {e.Author.Ao3ProfileName}")
                 .ToList();
 
             if (entries.Count == 0)
