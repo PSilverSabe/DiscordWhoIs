@@ -77,7 +77,7 @@ namespace DiscordWhoIs.Core.Databases.Repositories
 
                 if (existing != null)
                 {
-                    existing.Author.Ao3ProfileName = real;
+                    existing.AliasUserName = alias;
                     context.Aliases.Update(existing);
                 }
                 else

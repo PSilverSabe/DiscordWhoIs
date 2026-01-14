@@ -22,6 +22,9 @@ namespace DiscordWhoIs.Worker.Commands
         public async Task ActiveUsersAsync(
             [Summary("hours", "Number of hours to look back (max 12)")] int hours)
         {
+
+            return;
+
             if (hours < 1 || hours > 12)
             {
                 await RespondAsync("Please provide a number between 1 and 12 hours.", ephemeral: true);

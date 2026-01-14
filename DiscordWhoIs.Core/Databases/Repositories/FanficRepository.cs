@@ -30,11 +30,18 @@ namespace DiscordWhoIs.Core.Databases.Repositories
 
         public Task<IReadOnlyList<Fanfic>> GetAllByAuthorAsync(string author)
         {
+            IReadOnlyList<Fanfic> results = [];
             using var context = _dbContextFactory.CreateDbContext();
-            IReadOnlyList<Fanfic> results = [..
-                context.Fanfics.AsNoTracking().Include(author)
-                .Where(x => x.Authors.Any(f => f.Ao3ProfileName.Equals(author, StringComparison.CurrentCultureIgnoreCase)
-                                                    || f.Ao3ProfileName.Contains(author, StringComparison.CurrentCultureIgnoreCase)))];
+            var dbAuthor = context.Authors.Where(x => x.Ao3ProfileName.Equals(author, StringComparison.CurrentCultureIgnoreCase)
+                                                                    || x.Ao3ProfileName.Contains(author, StringComparison.CurrentCultureIgnoreCase))
+                                    .Include(x => x.Fanfics)
+                                    .FirstOrDefault();
+
+            if (dbAuthor != null) {
+                results = [.. dbAuthor.Fanfics];
+                return Task.FromResult(results);
+            }
+
             return Task.FromResult(results);
         }
 
