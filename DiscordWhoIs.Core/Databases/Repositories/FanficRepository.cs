@@ -32,12 +32,14 @@ namespace DiscordWhoIs.Core.Databases.Repositories
         {
             IReadOnlyList<Fanfic> results = [];
             using var context = _dbContextFactory.CreateDbContext();
-            var dbAuthor = context.Authors.Where(x => x.Ao3ProfileName.Equals(author, StringComparison.CurrentCultureIgnoreCase)
-                                                                    || x.Ao3ProfileName.Contains(author, StringComparison.CurrentCultureIgnoreCase))
+            var lowerAuthor = author.ToLower();
+            var dbAuthor = context.Authors
+                                    .Where(a => a.Ao3ProfileName.ToLower() == lowerAuthor || a.Ao3ProfileName.ToLower().Contains(lowerAuthor))
                                     .Include(x => x.Fanfics)
                                     .FirstOrDefault();
 
-            if (dbAuthor != null) {
+            if (dbAuthor != null) 
+            {
                 results = [.. dbAuthor.Fanfics];
                 return Task.FromResult(results);
             }
