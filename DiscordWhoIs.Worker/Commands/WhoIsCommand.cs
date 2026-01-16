@@ -89,7 +89,11 @@ public class WhoIsCommandModule(
         // Send embed as a separate normal message
         EmbedBuilder embed = new EmbedBuilder()
             .WithTitle($"Recent works for {canonicalAuthor.Ao3ProfileName}")
-            .WithDescription($"Showing up to 10 works. \n\n {canonicalAuthor.Description} \n\n")
+            .WithDescription(string.Empty)
+            .AddField("Ao3 Profile", $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}", inline: true)
+            .AddField("Total Works", $"{canonicalAuthor.Fanfics.Count}", inline: true)
+            .AddField("Description", $"{canonicalAuthor.Description}", inline: false)
+            .AddField("Recent Fics (Showing last 10 works)", string.Empty, inline: false)
             .WithFooter("Source: Archive of Our Own")
             .WithColor(Color.DarkBlue);
 
