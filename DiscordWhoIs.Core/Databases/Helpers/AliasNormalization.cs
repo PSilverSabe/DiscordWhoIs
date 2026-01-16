@@ -6,6 +6,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DiscordWhoIs.Core.Databases.Helpers;
 
+/// <summary>
+/// Provides methods for normalizing and splitting aliased author names in the database.
+/// </summary>
+/// <remarks>This class is intended for use with database migration or data cleanup scenarios where author names
+/// may include aliases in a canonical form (e.g., "Alias (Canonical)"). All members are static and
+/// thread-safe.</remarks>
 public static partial class AliasNormalization
 {
     private static readonly Regex s_aliasedAuthorRegex =

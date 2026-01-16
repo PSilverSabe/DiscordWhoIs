@@ -1,7 +1,6 @@
 ﻿using System.Data.Common;
 using System.Text.Json;
 using DiscordWhoIs.Core.Databases.DbContexts;
-using DiscordWhoIs.Core.Databases.Helpers;
 using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Core.Filters;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -62,8 +61,6 @@ using (IServiceScope scope = app.Services.CreateScope())
     using BotDbContext context = factory.CreateDbContext();
 
     context.Database.Migrate();
-
-    AliasNormalization.SplitAliasedAuthors(scope.ServiceProvider);
 
     IEnumerable<string> pending = context.Database.GetPendingMigrations();
     if (pending.Any())

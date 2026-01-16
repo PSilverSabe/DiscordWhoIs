@@ -6,7 +6,6 @@ using System.Linq;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbContexts;
-using DiscordWhoIs.Core.Databases.Helpers;
 using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Worker;
 using DiscordWhoIs.Worker.Commands.Registry;
@@ -65,8 +64,6 @@ using (IServiceScope scope = host.Services.CreateScope())
 
     using BotDbContext context = factory.CreateDbContext();
     context.Database.Migrate();
-
-    AliasNormalization.SplitAliasedAuthors(scope.ServiceProvider);
 
     IEnumerable<string> pending = context.Database.GetPendingMigrations();
     if (pending.Any())
