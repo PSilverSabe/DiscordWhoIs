@@ -21,21 +21,19 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
 
         modelBuilder.Entity<Alias>(entity =>
         {
-            entity.HasKey(a => a.Id);
+            entity.HasKey(e => e.Id);
 
-            entity.Property(a => a.AliasUserName)
-                  .UseCollation("NOCASE");
+            entity.Property(e => e.AliasUserName)
+                  .UseCollation("NOCASE")
+                  .IsRequired()
+                  .HasMaxLength(256);
 
-            entity.HasIndex(a => a.AliasUserName)
+            entity.HasIndex(e => e.AliasUserName)
                   .IsUnique();
 
-            entity.Property(a => a.AliasUserName)
-                  .IsRequired()
-                  .HasMaxLength(200);
-
-            entity.HasOne(a => a.Author)
-                  .WithMany(a => a.Aliases)
-                  .HasForeignKey(a => a.AuthorId)
+            entity.HasOne(e => e.Author)
+                  .WithMany(e => e.Aliases)
+                  .HasForeignKey(e => e.AuthorId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -46,28 +44,52 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
             entity.Property(e => e.Link)
                   .IsRequired();
 
+            entity.HasIndex(e => e.Link)
+                  .IsUnique();
+
             entity.HasMany(e => e.Authors)
-                  .WithMany(a => a.Fanfics);
+                  .WithMany(e => e.Fanfics);
         });
 
         modelBuilder.Entity<Author>(entity =>
         {
             entity.HasKey(e => e.AuthorId);
 
+            // Ao3ProfileName
             entity.Property(e => e.Ao3ProfileName)
+                  .UseCollation("NOCASE")
                   .IsRequired()
                   .HasMaxLength(256);
 
-            entity.HasIndex(a => a.Ao3ProfileName)
+            entity.HasIndex(e => e.Ao3ProfileName)
                   .IsUnique();
+
+            // FanficNetId
+            entity.Property(e => e.FanficNetId)
+                  .IsRequired(false);
+
+            entity.HasIndex(e => e.FanficNetId)
+                  .IsUnique();
+
+            // FanficNetProfileName
+            entity.Property(e => e.FanficNetProfileName)
+                  .UseCollation("NOCASE")
+                  .IsRequired(false)
+                  .HasMaxLength(256);
+
+            entity.HasIndex(e => e.FanficNetProfileName)
+                  .IsUnique();
+
+            // DiscordId
+            entity.Property(e => e.DiscordId)
+                  .IsRequired(false);
 
             entity.HasIndex(e => e.DiscordId)
                   .IsUnique();
-
-            entity.Property(a => a.Ao3ProfileName)
-                  .UseCollation("NOCASE");
-
-            entity.Property(e => e.FanficNetProfileName)
+            // DiscordUserName
+            entity.Property(e => e.DiscordUserName)
+                  .UseCollation("NOCASE")
+                  .IsRequired(false)
                   .HasMaxLength(256);
 
             entity.HasMany(e => e.Fanfics).WithMany(f => f.Authors);

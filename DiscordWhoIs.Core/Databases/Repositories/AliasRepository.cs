@@ -18,8 +18,6 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
             .AsNoTracking()
             .ToList();
 
-        context.Dispose();
-
         return aliases;
     }
 
@@ -41,8 +39,7 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
         // Find the author entity
-        Author authorEntity = await context.Authors
-            .FirstOrDefaultAsync(a => a.Ao3ProfileName == real)
+        Author authorEntity = await context.Authors.FirstOrDefaultAsync(a => a.Ao3ProfileName == real)
             ?? throw new InvalidOperationException($"No author found with AO3 profile name '{real}'.");
 
         // Find existing alias
@@ -60,8 +57,6 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
         }
 
         await SaveChangesAsync(context);
-
-        context.Dispose();
 
         _logger.LogInformation("Added/updated alias {Alias} -> {RealUserName}", alias, real);
     }
@@ -85,8 +80,6 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
 
         context.Aliases.Remove(entity);
         await SaveChangesAsync(context);
-
-        context.Dispose();
 
         _logger.LogInformation("Removed alias {Alias} from DB", alias);
         return true;

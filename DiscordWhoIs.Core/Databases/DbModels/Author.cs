@@ -8,7 +8,7 @@ namespace DiscordWhoIs.Core.Databases.DbModels;
 [Index(nameof(FanficNetId), IsUnique = true)]
 [Index(nameof(FanficNetProfileName), IsUnique = true)]
 [Index(nameof(DiscordId), IsUnique = true)]
-[Index(nameof(DiscordUsername), IsUnique = true)]
+[Index(nameof(DiscordUserName), IsUnique = true)]
 public class Author
 {
     public Author() { }
@@ -19,7 +19,7 @@ public class Author
         FanficNetId = fanficNetId;
         FanficNetProfileName = fanFicNetProfileName;
         DiscordId = discordId;
-        DiscordUsername = discordUsername;
+        DiscordUserName = discordUsername;
     }
 
     [Key]
@@ -33,7 +33,7 @@ public class Author
 
     public ulong? DiscordId { get; set; }
 
-    public string? DiscordUsername { get; set; }
+    public string? DiscordUserName { get; set; }
 
     public string? Description { get; set; }
 
@@ -55,7 +55,7 @@ public class Author
         sb.AppendLine($"FanFic.Net Id: {FanficNetId}");
         sb.AppendLine($"FanFic.Net Profile Name: {FanficNetProfileName}");
         sb.AppendLine($"Discord Id: {DiscordId}");
-        sb.AppendLine($"Discord Username: {DiscordUsername}");
+        sb.AppendLine($"Discord Username: {DiscordUserName}");
         sb.AppendLine($"Created At: {CreatedAt}");
         sb.AppendLine($"Last Updated At: {LastUpdatedAt}");
         sb.AppendLine($"Last Active At: {LastActiveAt}");

@@ -21,50 +21,39 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
 
     public async Task<IReadOnlyList<Fanfic>> GetAllAsync()
     {
-        using BotDbContext context = _dbContextFactory.CreateDbContext();
-        IReadOnlyList<Fanfic> results = [.. context.Fanfics.AsNoTracking()];
-
-        context.Dispose();
-
-        return results;
+        await using BotDbContext context = _dbContextFactory.CreateDbContext();
+        return await context.Fanfics
+            .AsNoTracking()
+            .ToListAsync();
     }
 
     public async Task<IReadOnlyList<Fanfic>> GetAllByAuthorAsync(string name)
     {
-        using BotDbContext context = _dbContextFactory.CreateDbContext();
+        await using BotDbContext context = _dbContextFactory.CreateDbContext();
 
-        var fanfics = context.Authors
+        return await context.Authors
             .Where(a =>
                 a.Ao3ProfileName == name ||
                 a.Aliases.Any(al => al.AliasUserName == name))
             .SelectMany(a => a.Fanfics)
             .AsNoTracking()
-            .ToList();
-
-        context.Dispose();
-
-        return fanfics;
+            .ToListAsync();
     }
 
     public async Task<Fanfic?> GetByIdAsync(int id)
     {
         using BotDbContext context = _dbContextFactory.CreateDbContext();
-        Fanfic? fanfic = context.Fanfics.AsNoTracking().FirstOrDefault(f => f.FanficId == id);
-
-        context.Dispose();
-
-        return fanfic;
+        return await context.Fanfics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.FanficId == id);
     }
 
     public async Task<Fanfic?> GetByTitleAsync(string title)
     {
         using BotDbContext context = _dbContextFactory.CreateDbContext();
-
-        Fanfic? fanfic = context.Fanfics.AsNoTracking().FirstOrDefault(f => f.Title == title);
-
-        context.Dispose();
-
-        return fanfic;
+        return await context.Fanfics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Title == title);
     }
 
     public async Task<bool> ImportFromJsonAsync(string jsonFileName)
@@ -77,7 +66,7 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
 
 
         using FileStream stream = File.OpenRead(jsonFileName);
-        List<FanficJsonImport>? parsedContent = JsonSerializer.Deserialize<List<FanficJsonImport>>(stream, _options);
+        List<FanficJsonImport>? parsedContent = await JsonSerializer.DeserializeAsync<List<FanficJsonImport>>(stream, _options);
         stream.Dispose();
 
         if (parsedContent == null || parsedContent.Count == 0)
@@ -158,7 +147,7 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
                 canonicalAuthor.Ao3ProfileName);
         }
 
-        SaveChanges(context);
+        await SaveChangesAsync(context);
 
         try
         {
@@ -201,16 +190,12 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
 
             context.Fanfics.AddRange(newFanfics);
 
-            SaveChanges(context);
+            await SaveChangesAsync(context);
         }
         catch (Exception ex)
         {
             Console.WriteLine("DB ERROR PATH = " + context.Database.GetConnectionString());
             Console.WriteLine(ex);
-        }
-        finally
-        {
-            context.Dispose();
         }
 
         return true;
