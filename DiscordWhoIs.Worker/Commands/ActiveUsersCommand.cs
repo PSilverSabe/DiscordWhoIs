@@ -23,22 +23,19 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModu
 
         if (hours < 1 || hours > 12)
         {
-            statusLines.Add("The number of hours must be between 1 and 12.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "The number of hours must be between 1 and 12.");
             return;
         }
 
         if (!(Context.User as IGuildUser)?.GuildPermissions.ManageMessages ?? false)
         {
-            statusLines.Add("You do not have permission to use this command. (Manage Messages required)");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to use this command. (Manage Messages required)");
             return;
         }
 
         if (Context.Channel is not ITextChannel channel)
         {
-            statusLines.Add("This command can only be used in a text channel.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command can only be used in a text channel.");
             return;
         }
 
@@ -46,8 +43,7 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModu
 
         if (activeUsers.Count == 0)
         {
-            statusLines.Add($"No users have spoken in this channel in the last {hours} hour(s).");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"No users have spoken in this channel in the last {hours} hour(s).");
             return;
         }
 
@@ -65,7 +61,6 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModu
             messageContent = string.Concat(messageContent.AsSpan(0, 1990), "...");
         }
 
-        statusLines.Add($"Users active in the last {hours} hour(s) in this channel: {messageContent}");
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Users active in the last {hours} hour(s) in this channel: {messageContent}");
     }
 }

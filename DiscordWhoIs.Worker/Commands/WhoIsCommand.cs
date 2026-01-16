@@ -37,8 +37,8 @@ public class WhoIsCommandModule(
             return;
         }
 
-        statusLines.Add($"Resolving alias and checking database for **{requested}**...");
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            $"Resolving alias and checking database for **{requested}**...");
 
         // Resolve alias via DB lookup
         Author? canonicalAuthor = await _author.GetByAo3ProfileNameAsync(requested);
@@ -61,10 +61,10 @@ public class WhoIsCommandModule(
 
         if (!fics.Any())
         {
-            statusLines.Add($"No fics found for **{real}**. Please wait for the daily scrape update." +
-                            (real.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
             _logger.LogInformation("No fics found for {User}", real);
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                $"No fics found for **{real}**. Please wait for the daily scrape update." +
+                (real.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
             return;
         }
 

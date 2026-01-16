@@ -61,6 +61,9 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
             entity.HasIndex(a => a.Ao3ProfileName)
                   .IsUnique();
 
+            entity.HasIndex(e => e.DiscordId)
+                  .IsUnique();
+
             entity.Property(a => a.Ao3ProfileName)
                   .UseCollation("NOCASE");
 

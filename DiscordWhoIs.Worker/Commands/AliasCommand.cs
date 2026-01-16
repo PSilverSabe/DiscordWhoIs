@@ -35,34 +35,25 @@ public class AliasCommandModule(
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            statusLines.Add("This command must be used in a server (guild).");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
             return;
         }
 
-        bool isAdmin = guildUser.GuildPermissions.Administrator
-                      || guildUser.GuildPermissions.ManageGuild
-                      || guildUser.Roles.Any(r => r.Id == 1358267994303889589);
-
-        if (!isAdmin)
+        if (guildUser.HasAdminPermissions())
         {
-
-            statusLines.Add("You do not have permission to manage aliases.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to manage aliases.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(user))
         {
-            statusLines.Add("Both `alias` and `user` are required.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Both `alias` and `user` are required.");
             return;
         }
 
         await _store.AddOrUpdateAsync(alias, user);
 
-        statusLines.Add($"Added/updated alias ``{alias}`` -> ``{user}``");
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Added/updated alias ``{alias}`` -> ``{user}``");
         return;
     }
 
@@ -78,26 +69,19 @@ public class AliasCommandModule(
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            statusLines.Add("This command must be used in a server (guild).");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
             return;
         }
 
-        bool isAdmin = guildUser.GuildPermissions.Administrator
-                      || guildUser.GuildPermissions.ManageGuild
-                      || guildUser.Roles.Any(r => r.Id == 1358267994303889589);
-
-        if (!isAdmin)
+        if (guildUser.HasAdminPermissions())
         {
-            statusLines.Add("You do not have permission to manage aliases.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to manage aliases.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(alias))
         {
-            statusLines.Add("`alias` is required.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "`alias` is required.");
             return;
         }
 
@@ -107,22 +91,19 @@ public class AliasCommandModule(
             if (removed)
             {
                 _logger.LogInformation("Alias removed by {Actor}: {Alias}", guildUser.Username, alias);
-                statusLines.Add($"Removed alias `{alias}`.");
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Removed alias `{alias}`.");
                 return;
             }
             else
             {
-                statusLines.Add($"Alias `{alias}` not found.");
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Alias `{alias}` not found.");
                 return;
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove alias {Alias}", alias);
-            statusLines.Add("Failed to remove alias due to an internal error.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Failed to remove alias due to an internal error.");
         }
     }
 
@@ -135,19 +116,13 @@ public class AliasCommandModule(
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            statusLines.Add("This command must be used in a server (guild).");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
             return;
         }
 
-        bool isAdmin = guildUser.GuildPermissions.Administrator
-                      || guildUser.GuildPermissions.ManageGuild
-                      || guildUser.Roles.Any(r => r.Id == 1358267994303889589);
-
-        if (!isAdmin)
+        if (guildUser.HasAdminPermissions())
         {
-            statusLines.Add("You do not have permission to view aliases.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to view aliases.");
             return;
         }
 
@@ -157,8 +132,7 @@ public class AliasCommandModule(
 
         if (entries.Count == 0)
         {
-            statusLines.Add("No aliases configured.");
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "No aliases configured.");
             return;
         }
 

@@ -12,75 +12,48 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     public async Task<IReadOnlyList<Author>> GetAllAsync()
     {
         using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
-
-        List<Author> authors = context.Authors
-            .AsNoTracking()
-            .ToList();
-
-        context.Dispose();
-
+        List<Author> authors = await context.Authors.AsNoTracking().ToListAsync();
         return authors;
     }
 
-    public async Task<IReadOnlyList<Author>> GetAllByNameAsync(string authorName)
+    public async Task<IReadOnlyList<Author>> GetAllByNameAsync(string ao3ProfileName)
     {
         using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
-        string lowerAuthor = authorName.ToLower();
+        string lowerName = ao3ProfileName.ToLower();
 
-        List<Author> authors = context.Authors
+        List<Author> authors = [.. context.Authors
             .AsNoTracking()
             .Include(a => a.Aliases)
             .Where(a =>
-                a.Ao3ProfileName.ToLower() == lowerAuthor ||
-                a.FanficNetProfileName == authorName ||
-                a.DiscordUsername == authorName ||
-                a.Aliases.Any(alias => alias.AliasUserName.ToLower() == lowerAuthor)
-            )
-            .ToList();
+                a.Ao3ProfileName.ToLower() == lowerName ||
+                (a.FanficNetProfileName != null && a.FanficNetProfileName.ToLower() == lowerName) ||
+                (a.DiscordUsername != null && a.DiscordUsername.ToLower() == lowerName) ||
+                a.Aliases.Any(alias => alias.AliasUserName.ToLower() == lowerName)
+            )];
 
-        context.Dispose();
+
 
         return authors;
     }
 
     public async Task<Author?> GetByAo3ProfileNameAsync(string ao3ProfileName)
     {
-        using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
-        string lowerName = ao3ProfileName.ToLower();
+        IReadOnlyList<Author> authors = await GetAllByNameAsync(ao3ProfileName);
 
-        // Attempt to find canonical match first
-        Author? author = await context.Authors
-            .AsNoTracking()
-            .Include(a => a.Aliases)
-            .FirstOrDefaultAsync(a => a.Ao3ProfileName.ToLower() == lowerName ||
-                                      a.FanficNetProfileName == ao3ProfileName ||
-                                      a.DiscordUsername == ao3ProfileName);
-
-        if (author != null)
+        if (authors.Count == 0)
         {
-            return author;
+            return default;
         }
 
-        // If no canonical match, check aliases
-        author = await context.Authors
-            .AsNoTracking()
-            .Include(a => a.Aliases)
-            .FirstOrDefaultAsync(a => a.Aliases.Any(alias => alias.AliasUserName.ToLower() == lowerName));
-
-        context.Dispose();
-
-        return author;
+        return authors[0];
     }
 
     public async Task<Author?> GetByIdAsync(int id)
     {
         using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
-
         Author? author = await context.Authors
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.AuthorId == id);
-
-        context.Dispose();
 
         return author;
     }
@@ -92,8 +65,6 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.DiscordId == discordId);
 
-        context.Dispose();
-
         return author;
     }
 
@@ -102,10 +73,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
         using BotDbContext context = _dbContextFactory.CreateDbContext();
 
         context.Entry(author).CurrentValues.SetValues(author);
-
         await SaveChangesAsync(context);
-
-        context.Dispose();
 
         return true;
     }
@@ -113,8 +81,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     public async Task<bool> UpdateAuthorDescriptionAsync(int authorId, string description)
     {
         using BotDbContext context = _dbContextFactory.CreateDbContext();
-
-        Author? author = context.Authors.FirstOrDefault(a => a.AuthorId == authorId);
+        Author? author = await context.Authors.FirstOrDefaultAsync(a => a.AuthorId == authorId);
 
         if (author == null)
         {
@@ -126,14 +93,25 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
 
         await SaveChangesAsync(context);
 
-        context.Dispose();
 
         return true;
     }
 
-    public async Task<bool> UpdateDiscordUsernameAsync(int authorId, string discordUsername, ulong discordId)
+    public async Task<bool> UpdateDiscordUsernameAsync(int authorId, string discordUsername, ulong discordId, bool removeDiscordIdBeforeReapply = false)
     {
         using BotDbContext context = _dbContextFactory.CreateDbContext();
+
+        if (removeDiscordIdBeforeReapply)
+        {
+            List<Author> authors = await context.Authors.Where(a => a.DiscordId == discordId).ToListAsync();
+            foreach (Author? a in authors)
+            {
+                a.DiscordId = null;
+                a.DiscordUsername = null;
+                a.LastUpdatedAt = DateTime.UtcNow;
+            }
+            await SaveChangesAsync(context);
+        }
 
         Author? author = context.Authors.FirstOrDefault(a => a.AuthorId == authorId);
         if (author == null)
@@ -147,7 +125,52 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
 
         await SaveChangesAsync(context);
 
-        context.Dispose();
+        return true;
+    }
+
+    public async Task<bool> DiscordIdAlreadyExists(ulong discordId)
+    {
+        using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
+        bool exists = await context.Authors
+            .AsNoTracking()
+            .AnyAsync(a => a.DiscordId == discordId);
+
+        return exists;
+    }
+
+    public async Task<bool> UpdateAuthorDescriptionAsync(ulong discordId, string description)
+    {
+        using BotDbContext context = _dbContextFactory.CreateDbContext();
+
+        Author? author = context.Authors.FirstOrDefault(a => a.DiscordId == discordId);
+
+        if (author == null)
+        {
+            return false;
+        }
+
+        author.Description = description;
+        author.LastUpdatedAt = DateTime.UtcNow;
+
+        await SaveChangesAsync(context);
+
+        return true;
+    }
+
+    public async Task<bool> UpdateAuthorDescriptionAsync(Author author, string description)
+    {
+        using BotDbContext context = _dbContextFactory.CreateDbContext();
+        Author? dbAuthor = context.Authors.FirstOrDefault(a => a.AuthorId == author.AuthorId);
+
+        if (dbAuthor == null)
+        {
+            return false;
+        }
+
+        dbAuthor.Description = description;
+        dbAuthor.LastUpdatedAt = DateTime.UtcNow;
+
+        await SaveChangesAsync(context);
 
         return true;
     }

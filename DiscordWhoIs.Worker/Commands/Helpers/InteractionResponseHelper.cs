@@ -9,10 +9,13 @@ public static class InteractionResponseHelper
 {
     public static Task UpdateOriginalResponseAsync(
         IInteractionContext context,
-        IEnumerable<string> lines)
+        List<string> lines,
+        string insertContent)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(lines);
+
+        lines.Add(insertContent);
 
         return context.Interaction.ModifyOriginalResponseAsync(msg =>
         {
