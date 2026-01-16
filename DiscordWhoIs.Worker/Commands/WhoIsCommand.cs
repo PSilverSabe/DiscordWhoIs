@@ -41,7 +41,7 @@ public class WhoIsCommandModule(
         }
 
         await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-            $"Resolving alias and checking database for **{requested}**...", _logger);
+            $"Resolving alias and checking database for user...", _logger);
 
         Author? canonicalAuthor = null;
         if (user != null)
@@ -65,13 +65,14 @@ public class WhoIsCommandModule(
         if (canonicalAuthor == null)
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-                $"No Ao3 author found for username/alias/discord user **{requested}**.", _logger);
+                $"No Ao3 author found for username/alias/discord user.", _logger);
             return;
         }
 
         if (canonicalAuthor.Fanfics.Count == 0)
         {
             _logger.LogInformation("No fics found for {User}", canonicalAuthor.Ao3ProfileName);
+
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
                 $"No fics found for **{canonicalAuthor.Ao3ProfileName}**. Please wait for the daily scrape update." +
                 (canonicalAuthor.Ao3ProfileName.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"),
@@ -80,14 +81,15 @@ public class WhoIsCommandModule(
         }
 
         // Final status line
-        statusLines.Add($"Fetched {canonicalAuthor.Fanfics.Count} fics for **{canonicalAuthor.Ao3ProfileName}**.");
         _logger.LogInformation("Fetched {Count} fics for {User}", canonicalAuthor.Fanfics.Count, canonicalAuthor.Ao3ProfileName);
+
+        statusLines.Add($"Fetched {canonicalAuthor.Fanfics.Count} fics for **{canonicalAuthor.Ao3ProfileName}**.");
         await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
         // Send embed as a separate normal message
         EmbedBuilder embed = new EmbedBuilder()
             .WithTitle($"Recent works for {canonicalAuthor.Ao3ProfileName}")
-            .WithDescription($"Showing up to 10 works. \n {canonicalAuthor.Description}")
+            .WithDescription($"Showing up to 10 works. \n\n {canonicalAuthor.Description}")
             .WithFooter("Source: Archive of Our Own")
             .WithColor(Color.DarkBlue);
 
