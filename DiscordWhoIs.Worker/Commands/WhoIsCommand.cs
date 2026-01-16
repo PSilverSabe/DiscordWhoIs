@@ -87,7 +87,7 @@ public class WhoIsCommandModule(
         // Send embed as a separate normal message
         EmbedBuilder embed = new EmbedBuilder()
             .WithTitle($"Recent works for {canonicalAuthor.Ao3ProfileName}")
-            .WithDescription($"Showing up to 10 works.")
+            .WithDescription($"Showing up to 10 works. \n {canonicalAuthor.Description}")
             .WithFooter("Source: Archive of Our Own")
             .WithColor(Color.DarkBlue);
 
