@@ -1,9 +1,8 @@
-namespace DiscordWhoIs.Core.Configuration.Models
-{
-    public class UploadConfiguration : FileLocationConfiguration
-    {
-        public bool IncludeExceptionDetails { get; set; } = false;
+﻿namespace DiscordWhoIs.Core.Configuration.Models;
 
-        public required string ApiKey { get; set; }
-    }
+public class UploadConfiguration : FileLocationConfiguration
+{
+    public bool IncludeExceptionDetails { get; set; } = false;
+
+    public required string ApiKey { get; set; }
 }

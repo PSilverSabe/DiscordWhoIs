@@ -1,9 +1,13 @@
+﻿using System.Data.Common;
+using System.Text.Json;
+using DiscordWhoIs.Core.Databases.DbContexts;
+using DiscordWhoIs.Core.Databases.Helpers;
 using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Core.Filters;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // If a repository-level appsettings.json exists, load it so all projects share the same settings.
 {
@@ -11,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
     string? found = null;
     while (dir != null)
     {
-        var candidate = Path.Combine(dir.FullName, "appsettings.json");
+        string candidate = Path.Combine(dir.FullName, "appsettings.json");
         if (File.Exists(candidate))
         {
             found = candidate;
@@ -28,7 +32,7 @@ var builder = WebApplication.CreateBuilder(args);
 }
 
 // Read URLs from configuration ("WebHost:Urls") or environment ("ASPNETCORE_URLS")
-var configuredUrls = builder.Configuration.GetValue<string>("WebHost:Urls")
+string? configuredUrls = builder.Configuration.GetValue<string>("WebHost:Urls")
                      ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
 if (!string.IsNullOrWhiteSpace(configuredUrls))
 {
@@ -48,7 +52,46 @@ builder.Services.AddControllers(); // your normal web registrations
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
+
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    IDbContextFactory<BotDbContext> factory = scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<BotDbContext>>();
+
+    using BotDbContext context = factory.CreateDbContext();
+
+    context.Database.Migrate();
+
+    AliasNormalization.SplitAliasedAuthors(scope.ServiceProvider);
+
+    IEnumerable<string> pending = context.Database.GetPendingMigrations();
+    if (pending.Any())
+    {
+        throw new InvalidOperationException(
+            $"Pending migrations detected: {string.Join(", ", pending)}");
+    }
+
+    DbConnection connection = context.Database.GetDbConnection();
+    try
+    {
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        using DbCommand cmd = connection.CreateCommand();
+        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+        cmd.ExecuteNonQuery();
+    }
+    finally
+    {
+        if (connection.State == System.Data.ConnectionState.Open)
+        {
+            connection.Close();
+        }
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {

@@ -2,45 +2,43 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DiscordWhoIs.Core.Configuration.JsonConverters
+namespace DiscordWhoIs.Core.Configuration.JsonConverters;
+
+public sealed class Ao3LastUpdateConverter
+     : JsonConverter<DateTime>
 {
-    public sealed class Ao3LastUpdateConverter
-         : JsonConverter<DateTime>
+    private static readonly string[] s_formats =
+    [
+        "dd MMM yyyy"
+    ];
+
+    public override DateTime Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
     {
-        private static readonly string[] Formats =
+        if (reader.TokenType != JsonTokenType.String)
         {
-            "dd MMM yyyy"
-        };
-
-        public override DateTime Read(
-            ref Utf8JsonReader reader,
-            Type typeToConvert,
-            JsonSerializerOptions options)
-        {
-            if (reader.TokenType != JsonTokenType.String)
-                throw new JsonException("Expected date string.");
-
-            string value = reader.GetString()!;
-
-            if (DateTime.TryParseExact(
-                value,
-                Formats,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                out DateTime result))
-            {
-                return result;
-            }
-
-            throw new JsonException($"Invalid date format: {value}");
+            throw new JsonException("Expected date string.");
         }
 
-        public override void Write(
-            Utf8JsonWriter writer,
-            DateTime value,
-            JsonSerializerOptions options)
+        string value = reader.GetString()!;
+
+        if (DateTime.TryParseExact(
+            value,
+            s_formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out DateTime result))
         {
-            writer.WriteStringValue(value.ToUniversalTime());
+            return result;
         }
+
+        throw new JsonException($"Invalid date format: {value}");
     }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        DateTime value,
+        JsonSerializerOptions options) => writer.WriteStringValue(value.ToUniversalTime());
 }

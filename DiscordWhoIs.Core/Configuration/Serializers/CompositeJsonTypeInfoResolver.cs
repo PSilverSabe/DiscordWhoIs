@@ -1,32 +1,32 @@
-namespace DiscordWhoIs.Core.Configuration.Serializers
+﻿using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+
+namespace DiscordWhoIs.Core.Configuration.Serializers;
+
+/// <summary>
+/// Composes multiple JsonTypeInfoResolvers, returning the first non-null JsonTypeInfo.
+/// Use this to allow source-generated contexts to be used while still falling back to the default resolver.
+/// </summary>
+public sealed class CompositeJsonTypeInfoResolver(params IJsonTypeInfoResolver[] resolvers) : IJsonTypeInfoResolver
 {
-    using System;
-    using System.Text.Json;
-    using System.Text.Json.Serialization.Metadata;
+    private readonly IJsonTypeInfoResolver[] _resolvers = resolvers ?? Array.Empty<IJsonTypeInfoResolver>();
 
-    /// <summary>
-    /// Composes multiple JsonTypeInfoResolvers, returning the first non-null JsonTypeInfo.
-    /// Use this to allow source-generated contexts to be used while still falling back to the default resolver.
-    /// </summary>
-    public sealed class CompositeJsonTypeInfoResolver : IJsonTypeInfoResolver
+    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
     {
-        private readonly IJsonTypeInfoResolver[] _resolvers;
-
-        public CompositeJsonTypeInfoResolver(params IJsonTypeInfoResolver[] resolvers)
+        foreach (IJsonTypeInfoResolver resolver in _resolvers)
         {
-            _resolvers = resolvers ?? Array.Empty<IJsonTypeInfoResolver>();
-        }
-
-        public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
-        {
-            foreach (var resolver in _resolvers)
+            if (resolver == null)
             {
-                if (resolver == null) continue;
-                var info = resolver.GetTypeInfo(type, options);
-                if (info != null) return info;
+                continue;
             }
 
-            return null;
+            JsonTypeInfo? info = resolver.GetTypeInfo(type, options);
+            if (info != null)
+            {
+                return info;
+            }
         }
+
+        return null;
     }
 }

@@ -3,126 +3,92 @@ using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Concurrent;
 
-namespace DiscordWhoIs.Core.Databases.Repositories
+namespace DiscordWhoIs.Core.Databases.Repositories;
+
+public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<AliasRepository> logger)
+    : RepositoryBase<BotDbContext, AliasRepository>(dbContextFactory, logger), IAliasRepository
 {
-    public class AliasRepository : RepositoryBase<BotDbContext, AliasRepository>, IAliasRepository
+    public async Task<IReadOnlyList<Alias>> GetAllAsync()
     {
-        private readonly ConcurrentDictionary<string, Alias> _store = new(StringComparer.OrdinalIgnoreCase);
-        private readonly SemaphoreSlim _dbLock = new(1, 1);
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        public AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<AliasRepository> logger)
-            : base(dbContextFactory, logger)
+        var aliases = context.Aliases
+            .Include(a => a.Author)
+            .AsNoTracking()
+            .ToList();
+
+        context.Dispose();
+
+        return aliases;
+    }
+
+    public async Task AddOrUpdateAsync(string alias, string real)
+    {
+        if (string.IsNullOrWhiteSpace(alias))
         {
-            // Load existing aliases from DB into in-memory store
-            using var context = _dbContextFactory.CreateDbContext();
-            foreach (var entry in context.Aliases.Include(x => x.Author).AsNoTracking())
-            {
-                _store[entry.AliasUserName] = entry;
-            }
-            _logger.LogInformation("Loaded {Count} aliases into memory.", _store.Count);
+            throw new ArgumentException("Alias cannot be empty.", nameof(alias));
         }
 
-        public Task<IReadOnlyList<Alias>> GetAllAsync()
+        if (string.IsNullOrWhiteSpace(real))
         {
-            return Task.FromResult((IReadOnlyList<Alias>)[.. _store.Values]);
+            throw new ArgumentException("RealUserName username cannot be empty.", nameof(real));
         }
 
-        public Task<bool> TryResolveAsync(string alias, out string real)
+        alias = alias.Trim();
+        real = real.Trim();
+
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
+
+        // Find the author entity
+        Author authorEntity = await context.Authors
+            .FirstOrDefaultAsync(a => a.Ao3ProfileName == real)
+            ?? throw new InvalidOperationException($"No author found with AO3 profile name '{real}'.");
+
+        // Find existing alias
+        Alias? existing = await context.Aliases.FindAsync(alias);
+
+        if (existing != null)
         {
-            real = default!;
-            if (string.IsNullOrWhiteSpace(alias))
-            {
-                return Task.FromResult(false);
-            }
-
-            var hasAlias = _store.TryGetValue(alias.Trim(), out var entry);
-            if (hasAlias && entry != null)
-            {
-                real = entry.Author.Ao3ProfileName;
-            }
-
-
-            return Task.FromResult(hasAlias);
+            existing.AuthorId = authorEntity.AuthorId;
+            context.Aliases.Update(existing);
+        }
+        else
+        {
+            var newEntry = new Alias(alias, authorEntity.AuthorId);
+            await context.Aliases.AddAsync(newEntry);
         }
 
-        public Task<bool> TryGetAsync(string alias, out Alias? entry)
+        await SaveChangesAsync(context);
+
+        context.Dispose();
+
+        _logger.LogInformation("Added/updated alias {Alias} -> {RealUserName}", alias, real);
+    }
+
+    public async Task<bool> RemoveAsync(string alias)
+    {
+        if (string.IsNullOrWhiteSpace(alias))
         {
-            entry = null;
-            if (string.IsNullOrWhiteSpace(alias))
-            {
-                return Task.FromResult(false);
-            }
-            return Task.FromResult(_store.TryGetValue(alias.Trim(), out entry));
+            return false;
         }
 
-        public async Task AddOrUpdateAsync(string alias, string real)
+        alias = alias.Trim();
+
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
+        Alias? entity = await context.Aliases.FindAsync(alias);
+
+        if (entity == null)
         {
-            if (string.IsNullOrWhiteSpace(alias)) throw new ArgumentException("Alias cannot be empty.", nameof(alias));
-            if (string.IsNullOrWhiteSpace(real)) throw new ArgumentException("RealUserName username cannot be empty.", nameof(real));
-
-            alias = alias.Trim();
-            real = real.Trim();
-
-            await _dbLock.WaitAsync();
-            try
-            {
-                await using var context = await _dbContextFactory.CreateDbContextAsync();
-
-                var existing = await context.Aliases.FindAsync(alias);
-                var authorEntity = await context.Authors.FirstOrDefaultAsync(a => a.Ao3ProfileName == real) 
-                    ?? throw new InvalidOperationException($"No author found with AO3 profile name '{real}'. Cannot create alias.");
-
-                if (existing != null)
-                {
-                    existing.AliasUserName = alias;
-                    context.Aliases.Update(existing);
-                }
-                else
-                {
-                    var newEntry = new Alias(alias, authorEntity.AuthorId);
-                    await context.Aliases.AddAsync(newEntry);
-                }
-
-                await SaveChangesAsync(context);
-
-                _store[alias] = new Alias(alias, authorEntity.AuthorId);
-                _logger.LogInformation("Added/updated alias {Alias} -> {RealUserName}", alias, real ?? "<none>");
-            }
-            finally
-            {
-                _dbLock.Release();
-            }
+            return false;
         }
 
-        public async Task<bool> RemoveAsync(string alias)
-        {
-            if (string.IsNullOrWhiteSpace(alias)) return false;
-            alias = alias.Trim();
+        context.Aliases.Remove(entity);
+        await SaveChangesAsync(context);
 
-            await _dbLock.WaitAsync();
-            try
-            {
-                await using var context = await _dbContextFactory.CreateDbContextAsync();
-                var entity = await context.Aliases.FindAsync(alias);
-                if (entity != null)
-                {
-                    context.Aliases.Remove(entity);
-                    await SaveChangesAsync(context);
+        context.Dispose();
 
-                    _store.TryRemove(alias, out _);
-                    _logger.LogInformation("Removed alias {Alias} from DB", alias);
-                    return true;
-                }
-
-                return false;
-            }
-            finally
-            {
-                _dbLock.Release();
-            }
-        }
+        _logger.LogInformation("Removed alias {Alias} from DB", alias);
+        return true;
     }
 }

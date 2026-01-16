@@ -1,7 +1,6 @@
-namespace DiscordWhoIs.Core.Configuration.Models
+﻿namespace DiscordWhoIs.Core.Configuration.Models;
+
+public class FandomConfiguration
 {
-    public class FandomConfiguration
-    {
-        public string? TargetFandom { get; set; } = null;
-    }
+    public string? TargetFandom { get; set; } = null;
 }

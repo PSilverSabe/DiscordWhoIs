@@ -1,14 +1,20 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Data.Common;
+using System.IO;
+using System.Linq;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordWhoIs.Core.Databases.DbContexts;
+using DiscordWhoIs.Core.Databases.Helpers;
 using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Worker;
 using DiscordWhoIs.Worker.Commands.Registry;
 using DiscordWhoIs.Worker.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System;
-using System.IO;
 
 IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((context, config) =>
@@ -18,7 +24,7 @@ IHost host = Host.CreateDefaultBuilder(args)
         string? found = null;
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, "appsettings.json");
+            string candidate = Path.Combine(dir.FullName, "appsettings.json");
             if (File.Exists(candidate))
             {
                 found = candidate;
@@ -52,5 +58,41 @@ IHost host = Host.CreateDefaultBuilder(args)
         services.AddHostedService<Worker>();
     })
     .Build();
+
+using (IServiceScope scope = host.Services.CreateScope())
+{
+    IDbContextFactory<BotDbContext> factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<BotDbContext>>();
+
+    using BotDbContext context = factory.CreateDbContext();
+    context.Database.Migrate();
+
+    AliasNormalization.SplitAliasedAuthors(scope.ServiceProvider);
+
+    IEnumerable<string> pending = context.Database.GetPendingMigrations();
+    if (pending.Any())
+    {
+        throw new InvalidOperationException($"Pending migrations detected: {string.Join(", ", pending)}");
+    }
+
+    DbConnection connection = context.Database.GetDbConnection();
+    try
+    {
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        using DbCommand cmd = connection.CreateCommand();
+        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+        cmd.ExecuteNonQuery();
+    }
+    finally
+    {
+        if (connection.State == System.Data.ConnectionState.Open)
+        {
+            connection.Close();
+        }
+    }
+}
 
 await host.RunAsync();
