@@ -30,7 +30,7 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
 
         if (string.IsNullOrWhiteSpace(authorName))
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "AO3 author name cannot be empty.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "AO3 author name cannot be empty.", _logger);
             return;
         }
 
@@ -40,13 +40,14 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
                 $"The AO3 author name **{authorName}** does not exist in the database. " +
-                "Please ensure you have at least one fanfic registered in the database before claiming ownership.");
+                "Please ensure you have at least one fanfic registered in the database before claiming ownership.",
+                _logger);
             return;
         }
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).", _logger);
             return;
         }
 
@@ -75,7 +76,8 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
         if (isUserTryingAdminOverride)
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-                "You do not have permission to register AO3 authors for other Discord users.");
+                "You do not have permission to register AO3 authors for other Discord users.",
+                _logger);
             return;
         }
         else
@@ -91,7 +93,8 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
             {
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
                     $"The current Discord user **{discordUserName}** is already registered to another AO3 author. " +
-                    $"In order to override this registration, please use the 'Discord-User' parameter to register for another user.");
+                    $"In order to override this registration, please use the 'Discord-User' parameter to register for another user.",
+                    _logger);
                 return;
             }
 
@@ -100,7 +103,8 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
             {
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
                     $"Your Discord user **{discordUserName}** is already registered to another AO3 author. " +
-                    "Please contact an administrator if you believe this is an error.");
+                    "Please contact an administrator if you believe this is an error.",
+                    _logger);
                 return;
             }
 
@@ -109,7 +113,8 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
             {
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
                     $"Warning: The Discord user **{discordUserName}** is already registered to another AO3 author. " +
-                    "As you have administrative privileges, you will override this registration.");
+                    "As you have administrative privileges, you will override this registration.",
+                    _logger);
 
                 await _author.UpdateDiscordUsernameAsync(authorId, discordUserName, discordUserId, true);
                 return;
@@ -120,7 +125,8 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
         await _author.UpdateDiscordUsernameAsync(authorId, discordUserName, discordUserId);
 
         await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-            $"Successfully registered AO3 author name **{authorName}** to Discord user **{discordUserName}**.");
+            $"Successfully registered AO3 author name **{authorName}** to Discord user **{discordUserName}**.",
+            _logger);
 
         return;
     }

@@ -15,6 +15,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
             await _dbContextFactory.CreateDbContextAsync();
 
         return await context.Authors
+            .Include(a => a.Fanfics)
             .AsNoTracking()
             .ToListAsync();
     }
@@ -28,6 +29,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
         return await context.Authors
             .AsNoTracking()
             .Include(a => a.Aliases)
+            .Include(a => a.Fanfics)
             .Where(a =>
                 a.Ao3ProfileName == normalized ||
                 a.FanficNetProfileName == normalized ||
@@ -46,6 +48,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
         return await context.Authors
             .AsNoTracking()
             .Include(a => a.Aliases)
+            .Include(a => a.Fanfics)
             .FirstOrDefaultAsync(a =>
                 a.Ao3ProfileName == normalized ||
                 a.Aliases.Any(alias =>
@@ -58,6 +61,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
 
         return await context.Authors
             .AsNoTracking()
+            .Include(a => a.Fanfics)
             .FirstOrDefaultAsync(a => a.AuthorId == id);
     }
 
@@ -67,6 +71,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
 
         return await context.Authors
             .AsNoTracking()
+            .Include(a => a.Fanfics)
             .FirstOrDefaultAsync(a => a.DiscordId == discordId);
     }
 

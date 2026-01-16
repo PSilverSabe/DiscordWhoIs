@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
@@ -24,67 +25,75 @@ public class WhoIsCommandModule(
     [SlashCommand("who-is-author", "Fetch fics for an Ao3 user.")]
     public async Task WhoIsAsync(
         [Summary("Ao3-Username", "Ao3 username or configured alias")]
-        string requested
+        string? requested = null,
+        [Summary("Discord-Username", "Discord username for the author")]
+        SocketGuildUser? user = null
     )
     {
         var statusLines = new List<string> { };
         await DeferAsync(ephemeral: true);
 
-        if (string.IsNullOrWhiteSpace(requested))
+        if (string.IsNullOrWhiteSpace(requested) && user == null)
         {
-            await RespondAsync("Please provide a username or alias.", ephemeral: true);
-            _logger.LogWarning("No username or alias provided.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                "Please provide either an Ao3 Name, Ao3 Alias, or a Discord User in order to get Author Information.", _logger);
             return;
         }
 
         await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-            $"Resolving alias and checking database for **{requested}**...");
+            $"Resolving alias and checking database for **{requested}**...", _logger);
 
-        // Resolve alias via DB lookup
-        Author? canonicalAuthor = await _author.GetByAo3ProfileNameAsync(requested);
-
-        string real;
-        bool hasFoundAlias = canonicalAuthor != null && !canonicalAuthor.Ao3ProfileName.Equals(requested, StringComparison.OrdinalIgnoreCase);
-        if (canonicalAuthor != null)
+        Author? canonicalAuthor = null;
+        if (user != null)
         {
-            real = canonicalAuthor.Ao3ProfileName;
-            _logger.LogInformation("Resolved {Requested} to canonical author {RealUser}", requested, real);
+            canonicalAuthor = await _author.GetByDiscordIdAsync(user.Id);
         }
         else
         {
-            real = requested;
-            _logger.LogInformation("No canonical author found for {Requested}, using as-is", requested);
+            requested = requested!.Trim();
+
+            if (string.IsNullOrWhiteSpace(requested))
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                    "Provided Ao3 username/alias is empty after trimming whitespace.", _logger);
+                return;
+            }
+
+            canonicalAuthor = await _author.GetByAo3ProfileNameAsync(requested);
         }
 
-        // Fetch fics
-        IReadOnlyList<Fanfic> fics = await _fanfic.GetAllByAuthorAsync(real);
-
-        if (!fics.Any())
+        if (canonicalAuthor == null)
         {
-            _logger.LogInformation("No fics found for {User}", real);
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-                $"No fics found for **{real}**. Please wait for the daily scrape update." +
-                (real.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"));
+                $"No Ao3 author found for username/alias/discord user **{requested}**.", _logger);
+            return;
+        }
+
+        if (canonicalAuthor.Fanfics.Count == 0)
+        {
+            _logger.LogInformation("No fics found for {User}", canonicalAuthor.Ao3ProfileName);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                $"No fics found for **{canonicalAuthor.Ao3ProfileName}**. Please wait for the daily scrape update." +
+                (canonicalAuthor.Ao3ProfileName.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"),
+                _logger);
             return;
         }
 
         // Final status line
-        statusLines.Add($"Fetched {fics.Count} fics for **{real}**.");
-        _logger.LogInformation("Fetched {Count} fics for {User}", fics.Count, real);
+        statusLines.Add($"Fetched {canonicalAuthor.Fanfics.Count} fics for **{canonicalAuthor.Ao3ProfileName}**.");
+        _logger.LogInformation("Fetched {Count} fics for {User}", canonicalAuthor.Fanfics.Count, canonicalAuthor.Ao3ProfileName);
         await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
         // Send embed as a separate normal message
-        string displayName = hasFoundAlias ? $"{real} (alias: {requested})" : real;
-
         EmbedBuilder embed = new EmbedBuilder()
-            .WithTitle($"Recent works for {displayName}")
+            .WithTitle($"Recent works for {canonicalAuthor.Ao3ProfileName}")
             .WithDescription($"Showing up to 10 works.")
             .WithFooter("Source: Archive of Our Own")
             .WithColor(Color.DarkBlue);
 
         Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
 
-        foreach (Fanfic? fic in fics.OrderByDescending(x => x.FicLastUpdated).Take(10))
+        foreach (Fanfic? fic in canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10))
         {
             string truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
             embed.AddField(truncatedTitle, fic.Link, inline: false);

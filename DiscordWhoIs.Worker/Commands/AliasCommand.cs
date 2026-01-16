@@ -35,25 +35,25 @@ public class AliasCommandModule(
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).", _logger);
             return;
         }
 
         if (guildUser.HasAdminPermissions())
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to manage aliases.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to manage aliases.", _logger);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(user))
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Both `alias` and `user` are required.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Both `alias` and `user` are required.", _logger);
             return;
         }
 
         await _store.AddOrUpdateAsync(alias, user);
 
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Added/updated alias ``{alias}`` -> ``{user}``");
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Added/updated alias ``{alias}`` -> ``{user}``", _logger);
         return;
     }
 
@@ -69,19 +69,19 @@ public class AliasCommandModule(
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).", _logger);
             return;
         }
 
         if (guildUser.HasAdminPermissions())
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to manage aliases.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to manage aliases.", _logger);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(alias))
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "`alias` is required.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "`alias` is required.", _logger);
             return;
         }
 
@@ -91,19 +91,19 @@ public class AliasCommandModule(
             if (removed)
             {
                 _logger.LogInformation("Alias removed by {Actor}: {Alias}", guildUser.Username, alias);
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Removed alias `{alias}`.");
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Removed alias `{alias}`.", _logger);
                 return;
             }
             else
             {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Alias `{alias}` not found.");
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Alias `{alias}` not found.", _logger);
                 return;
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to remove alias {Alias}", alias);
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Failed to remove alias due to an internal error.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Failed to remove alias due to an internal error.", _logger);
         }
     }
 
@@ -116,13 +116,13 @@ public class AliasCommandModule(
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).", _logger);
             return;
         }
 
         if (guildUser.HasAdminPermissions())
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to view aliases.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to view aliases.", _logger);
             return;
         }
 
@@ -132,7 +132,7 @@ public class AliasCommandModule(
 
         if (entries.Count == 0)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "No aliases configured.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "No aliases configured.", _logger);
             return;
         }
 

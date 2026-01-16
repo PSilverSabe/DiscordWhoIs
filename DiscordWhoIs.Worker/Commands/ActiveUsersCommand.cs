@@ -7,12 +7,14 @@ using Discord.Interactions;
 using DiscordWhoIs.Worker.Commands.Helpers;
 using DiscordWhoIs.Worker.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands;
 
-public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModuleBase<SocketInteractionContext>
+public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUsersCommand>) : InteractionModuleBase<SocketInteractionContext>
 {
     private readonly ActiveUsersCacheService _cache = cache;
+    private readonly ILogger<ActiveUsersCommand> _logger = logger;
 
     [SlashCommand("active-users", "List users who have spoken in this channel in the last X hours (max 12).")]
     public async Task ActiveUsersAsync(
@@ -23,19 +25,21 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModu
 
         if (hours < 1 || hours > 12)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "The number of hours must be between 1 and 12.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "The number of hours must be between 1 and 12.", _logger);
             return;
         }
 
         if (!(Context.User as IGuildUser)?.GuildPermissions.ManageMessages ?? false)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "You do not have permission to use this command. (Manage Messages required)");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                "You do not have permission to use this command. (Manage Messages required)", _logger);
             return;
         }
 
         if (Context.Channel is not ITextChannel channel)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command can only be used in a text channel.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                "This command can only be used in a text channel.", _logger);
             return;
         }
 
@@ -43,7 +47,8 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModu
 
         if (activeUsers.Count == 0)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"No users have spoken in this channel in the last {hours} hour(s).");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                $"No users have spoken in this channel in the last {hours} hour(s).", _logger);
             return;
         }
 
@@ -61,6 +66,7 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache) : InteractionModu
             messageContent = string.Concat(messageContent.AsSpan(0, 1990), "...");
         }
 
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, $"Users active in the last {hours} hour(s) in this channel: {messageContent}");
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            $"Users active in the last {hours} hour(s) in this channel: {messageContent}", _logger);
     }
 }

@@ -29,13 +29,15 @@ public class RegisterAuthorDescriptionCommand(IAuthorRepository authorRepository
 
         if (string.IsNullOrWhiteSpace(description))
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "Description cannot be empty.");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                "Description cannot be empty.", _logger);
             return;
         }
 
         if (Context.User is not SocketGuildUser guildUser)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "This command must be used in a server (guild).");
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                "This command must be used in a server (guild).", _logger);
             return;
         }
 
@@ -59,14 +61,15 @@ public class RegisterAuthorDescriptionCommand(IAuthorRepository authorRepository
         if (isAdminOverride)
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-                $"Warning: The AO3 description may already be set. As you have administrative privileges, you will override this description.");
+                $"Warning: The AO3 description may already be set. As you have administrative privileges, you will override this description.",
+                _logger);
         }
         // Admin registering for themselves
         else if (AdminButSelfRegister)
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
                 $"Warning: You are registering a Description to your own Discord user. " +
-                "As you have administrative privileges, you will override this registration.");
+                "As you have administrative privileges, you will override this registration.", _logger);
         }
         // User registering for themselves
         else if (isSelfRegister)
@@ -77,7 +80,7 @@ public class RegisterAuthorDescriptionCommand(IAuthorRepository authorRepository
         else if (isUserTryingAdminOverride)
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-                "You do not have permission to register AO3 authors for other Discord users.");
+                "You do not have permission to register AO3 authors for other Discord users.", _logger);
             return;
         }
 
@@ -89,7 +92,7 @@ public class RegisterAuthorDescriptionCommand(IAuthorRepository authorRepository
         await _author.UpdateAuthorDescriptionAsync(guildUser.Id, description);
 
         await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
-            $"Successfully registered AO3 author description for {guildUser.Username}.");
+            $"Successfully registered AO3 author description for {guildUser.Username}.", _logger);
 
         return;
     }
