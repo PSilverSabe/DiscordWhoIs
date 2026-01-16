@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands;
 
-public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUsersCommand>) : InteractionModuleBase<SocketInteractionContext>
+public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUsersCommand> logger) : InteractionModuleBase<SocketInteractionContext>
 {
     private readonly ActiveUsersCacheService _cache = cache;
     private readonly ILogger<ActiveUsersCommand> _logger = logger;
