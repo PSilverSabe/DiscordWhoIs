@@ -112,7 +112,7 @@ public class WhoIsCommandModule(
                 $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}",
                 inline: false)
             .AddField("Description",
-                $"{canonicalAuthor.Description}\n\n",
+                $"{canonicalAuthor.Description ?? "No description for author."}\n\n",
                 inline: false)
             .AddField("Recent Works (10 Most Recent)",
                 compiledString.ToString(),
