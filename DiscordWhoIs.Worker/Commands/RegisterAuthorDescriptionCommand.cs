@@ -2,6 +2,7 @@
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Modals.Handlers;
 using Microsoft.Extensions.Logging;
@@ -53,6 +54,18 @@ public class RegisterAuthorDescriptionCommand(
             return;
         }
 
+        Author? author = await _author.GetByDiscordIdAsync(user?.Id ?? callingUser.Id);
+        if (author == null)
+        {
+            await RespondAsync(
+                "No AO3 author is registered for the specified user. Please register an author first using /ao3-register.",
+                ephemeral: true);
+            return;
+        }
+
+        // Pre-fill existing description if available
+        string existingDescription = author.Description ?? string.Empty;
+
         // Otherwise, open a modal for multi-line input
         ulong targetUserId = user?.Id ?? callingUser.Id;
 
@@ -65,7 +78,8 @@ public class RegisterAuthorDescriptionCommand(
                 style: TextInputStyle.Paragraph,
                 placeholder: "Enter the author description",
                 maxLength: 500,
-                required: true)
+                required: true,
+                value: existingDescription)
             .Build();
 
         await RespondWithModalAsync(modal);
