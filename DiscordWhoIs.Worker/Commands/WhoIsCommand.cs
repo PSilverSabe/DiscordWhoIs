@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Discord;
@@ -86,24 +87,42 @@ public class WhoIsCommandModule(
         statusLines.Add($"Fetched {canonicalAuthor.Fanfics.Count} fics for **{canonicalAuthor.Ao3ProfileName}**.");
         await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
+        var compiledString = new StringBuilder();
+        foreach (Fanfic? fic in canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10))
+        {
+            string truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
+            compiledString.AppendLine($"**{truncatedTitle}**");
+            compiledString.AppendLine($"{fic.Link}\n");
+        }
+
+
         // Send embed as a separate normal message
         EmbedBuilder embed = new EmbedBuilder()
-            .WithTitle($"Recent works for {canonicalAuthor.Ao3ProfileName}")
-            .WithDescription(string.Empty)
-            .AddField("Ao3 Profile", $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}", inline: true)
-            .AddField("Total Works", $"{canonicalAuthor.Fanfics.Count}", inline: true)
-            .AddField("Description", $"{canonicalAuthor.Description}", inline: false)
-            .AddField("Recent Fics (Showing last 10 works)", string.Empty, inline: false)
-            .WithFooter("Source: Archive of Our Own")
+            .WithTitle($"Author Profile: {canonicalAuthor.Ao3ProfileName}")
+            .AddField("Total Works",
+                $"{canonicalAuthor.Fanfics.Count}",
+                inline: true)
+            .AddField("Total Kudos",
+                $"{canonicalAuthor.Fanfics.Sum(x => x.KudosCount)}",
+                inline: true)
+            .AddField("Total Hits",
+                $"{canonicalAuthor.Fanfics.Sum(x => x.HitCount)}",
+                inline: true)
+            .AddField("Ao3 Profile",
+                $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}",
+                inline: false)
+            .AddField("Description",
+                $"{canonicalAuthor.Description}\n\n",
+                inline: false)
+            .AddField("Recent Works (10 Most Recent)",
+                compiledString.ToString(),
+                inline: false)
+            .WithFooter("Source: Archive of Our Own", "https://archiveofourown.org/images/ao3_logos/logo_42.png")
             .WithColor(Color.DarkBlue);
 
         Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
 
-        foreach (Fanfic? fic in canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10))
-        {
-            string truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
-            embed.AddField(truncatedTitle, fic.Link, inline: false);
-        }
+
 
         await Context.Channel.SendMessageAsync(embed: embed.Build());
 
