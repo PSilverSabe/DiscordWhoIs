@@ -8,7 +8,10 @@ using Discord.Interactions;
 using Discord.Rest;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Configuration.Models;
+using DiscordWhoIs.Core.Databases.Interfaces;
+using DiscordWhoIs.Worker.Commands.Modals.Handlers;
 using DiscordWhoIs.Worker.Commands.Registry;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Services;
@@ -22,6 +25,7 @@ public class BotService
     private readonly IServiceProvider _services;
     private readonly DiscordConfiguration _discordConfig;
     private readonly ActiveUsersCacheService _cache;
+    private readonly IAuthorRepository _authorRepository;
 
     public BotService(
         DiscordSocketClient client,
@@ -30,7 +34,9 @@ public class BotService
         IServiceProvider services,
         ILogger<BotService> logger,
         DiscordConfiguration discordOptions,
-        ActiveUsersCacheService cache)
+        ActiveUsersCacheService cache,
+        IAuthorRepository authorRepository
+        )
     {
         _client = client;
         _interactions = interactions;
@@ -39,12 +45,16 @@ public class BotService
         _logger = logger;
         _discordConfig = discordOptions;
         _cache = cache;
+        _authorRepository = authorRepository;
 
         _client.Log += LogAsync;
         _client.Ready += OnReadyAsync;
         _client.InteractionCreated += HandleInteractionAsync;
         _client.JoinedGuild += OnJoinedGuildAsync; // auto-register commands for new guilds
         _client.MessageReceived += OnMessageReceivedAsync;
+
+        AuthorDescriptionModalHandler modalHandler = services.GetRequiredService<AuthorDescriptionModalHandler>();
+        client.ModalSubmitted += modalHandler.HandleAsync;
     }
 
     public async Task StartAsync()

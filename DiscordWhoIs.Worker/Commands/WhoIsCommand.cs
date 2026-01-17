@@ -31,17 +31,26 @@ public class WhoIsCommandModule(
         SocketGuildUser? user = null
     )
     {
+        // Validation: require exactly one
+        if (string.IsNullOrWhiteSpace(requested) && user is null)
+        {
+            await RespondAsync(
+                "You must provide **either** an AO3 username **or** a Discord user.",
+                ephemeral: true);
+            return;
+        }
+
         var statusLines = new List<string> { };
         await DeferAsync(ephemeral: true);
 
         if (string.IsNullOrWhiteSpace(requested) && user == null)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 "Please provide either an Ao3 Name, Ao3 Alias, or a Discord User in order to get Author Information.", _logger);
             return;
         }
 
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
             $"Resolving alias and checking database for user...", _logger);
 
         Author? canonicalAuthor = null;
@@ -55,7 +64,7 @@ public class WhoIsCommandModule(
 
             if (string.IsNullOrWhiteSpace(requested))
             {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                     "Provided Ao3 username/alias is empty after trimming whitespace.", _logger);
                 return;
             }
@@ -65,7 +74,7 @@ public class WhoIsCommandModule(
 
         if (canonicalAuthor == null)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 $"No Ao3 author found for username/alias/discord user.", _logger);
             return;
         }
@@ -74,7 +83,7 @@ public class WhoIsCommandModule(
         {
             _logger.LogInformation("No fics found for {User}", canonicalAuthor.Ao3ProfileName);
 
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 $"No fics found for **{canonicalAuthor.Ao3ProfileName}**. Please wait for the daily scrape update." +
                 (canonicalAuthor.Ao3ProfileName.Equals(requested, StringComparison.OrdinalIgnoreCase) ? "" : $" (requested: {requested})"),
                 _logger);

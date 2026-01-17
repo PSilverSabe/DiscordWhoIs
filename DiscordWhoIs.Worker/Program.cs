@@ -8,6 +8,7 @@ using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Worker;
+using DiscordWhoIs.Worker.Commands.Modals.Handlers;
 using DiscordWhoIs.Worker.Commands.Registry;
 using DiscordWhoIs.Worker.Services;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +50,7 @@ IHost host = Host.CreateDefaultBuilder(args)
         services.AddSingleton(sp => new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
 
         // Command registry and bot service
+        services.AddSingleton<AuthorDescriptionModalHandler>();
         services.AddSingleton<CommandRegistry>();
         services.AddSingleton<ActiveUsersCacheService>();
         services.AddSingleton<BotService>();

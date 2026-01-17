@@ -25,20 +25,20 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUse
 
         if (hours < 1 || hours > 12)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines, "The number of hours must be between 1 and 12.", _logger);
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines, "The number of hours must be between 1 and 12.", _logger);
             return;
         }
 
         if (!(Context.User as IGuildUser)?.GuildPermissions.ManageMessages ?? false)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 "You do not have permission to use this command. (Manage Messages required)", _logger);
             return;
         }
 
         if (Context.Channel is not ITextChannel channel)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 "This command can only be used in a text channel.", _logger);
             return;
         }
@@ -47,7 +47,7 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUse
 
         if (activeUsers.Count == 0)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 $"No users have spoken in this channel in the last {hours} hour(s).", _logger);
             return;
         }
@@ -66,7 +66,7 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUse
             messageContent = string.Concat(messageContent.AsSpan(0, 1990), "...");
         }
 
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context, statusLines,
+        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
             $"Users active in the last {hours} hour(s) in this channel: {messageContent}", _logger);
     }
 }
