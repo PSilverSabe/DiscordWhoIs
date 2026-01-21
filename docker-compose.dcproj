@@ -18,5 +18,6 @@
     <None Include=".dockerignore" />
     <None Include="Dockerfile.web" />
     <None Include="Dockerfile.worker" />
+    <None Include="README.md" />
   </ItemGroup>
 </Project>
