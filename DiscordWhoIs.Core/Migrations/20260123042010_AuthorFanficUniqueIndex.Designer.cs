@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DiscordWhoIs.Core.Migrations
 {
     [DbContext(typeof(BotDbContext))]
-    [Migration("20260123035859_AddInsertConstraintMappingTableFanFicAuthors")]
-    partial class AddInsertConstraintMappingTableFanFicAuthors
+    [Migration("20260123042010_AuthorFanficUniqueIndex")]
+    partial class AuthorFanficUniqueIndex
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -30,9 +30,11 @@ namespace DiscordWhoIs.Core.Migrations
 
                     b.HasKey("AuthorsAuthorId", "FanficsFanficId");
 
-                    b.HasIndex("FanficsFanficId");
+                    b.HasIndex("FanficsFanficId", "AuthorsAuthorId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FanficAuthors_FanficId_AuthorId");
 
-                    b.ToTable("AuthorFanfic");
+                    b.ToTable("AuthorFanfic", (string)null);
                 });
 
             modelBuilder.Entity("DiscordWhoIs.Core.Databases.DbModels.Alias", b =>

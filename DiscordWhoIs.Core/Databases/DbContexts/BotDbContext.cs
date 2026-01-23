@@ -19,6 +19,7 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
     {
         base.OnModelCreating(modelBuilder);
 
+        // Alias configuration
         modelBuilder.Entity<Alias>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -37,6 +38,7 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // Fanfic configuration
         modelBuilder.Entity<Fanfic>(entity =>
         {
             entity.HasKey(e => e.FanficId);
@@ -47,10 +49,33 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
             entity.HasIndex(e => e.Link)
                   .IsUnique();
 
+            // Configure many-to-many with Author explicitly
             entity.HasMany(e => e.Authors)
-                  .WithMany(e => e.Fanfics);
+                  .WithMany(e => e.Fanfics)
+                  .UsingEntity<Dictionary<string, object>>(
+                      "AuthorFanfic", // shadow table name
+                      j => j.HasOne<Author>()
+                            .WithMany()
+                            .HasForeignKey("AuthorsAuthorId")
+                            .OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Fanfic>()
+                            .WithMany()
+                            .HasForeignKey("FanficsFanficId")
+                            .OnDelete(DeleteBehavior.Cascade),
+                      j =>
+                      {
+                          j.HasKey("AuthorsAuthorId", "FanficsFanficId");
+
+                          // Named unique index to appear in snapshot
+                          j.HasIndex(new[] { "FanficsFanficId", "AuthorsAuthorId" })
+                           .IsUnique()
+                           .HasDatabaseName("IX_FanficAuthors_FanficId_AuthorId");
+
+                          j.ToTable("AuthorFanfic");
+                      });
         });
 
+        // Author configuration
         modelBuilder.Entity<Author>(entity =>
         {
             entity.HasKey(e => e.AuthorId);
@@ -86,13 +111,21 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
 
             entity.HasIndex(e => e.DiscordId)
                   .IsUnique();
+
             // DiscordUserName
             entity.Property(e => e.DiscordUserName)
                   .UseCollation("NOCASE")
                   .IsRequired(false)
                   .HasMaxLength(256);
 
-            entity.HasMany(e => e.Fanfics).WithMany(f => f.Authors);
+            // Configure many-to-many with Fanfic
+            entity.HasMany(e => e.Fanfics)
+                  .WithMany(f => f.Authors)
+                  .UsingEntity<Dictionary<string, object>>(
+                      "AuthorFanfic", // ensures consistent shadow table
+                      j => j.HasOne<Fanfic>().WithMany().HasForeignKey("FanficsFanficId").OnDelete(DeleteBehavior.Cascade),
+                      j => j.HasOne<Author>().WithMany().HasForeignKey("AuthorsAuthorId").OnDelete(DeleteBehavior.Cascade)
+                  );
         });
     }
 }

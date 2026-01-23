@@ -27,9 +27,11 @@ namespace DiscordWhoIs.Core.Migrations
 
                     b.HasKey("AuthorsAuthorId", "FanficsFanficId");
 
-                    b.HasIndex("FanficsFanficId");
+                    b.HasIndex("FanficsFanficId", "AuthorsAuthorId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FanficAuthors_FanficId_AuthorId");
 
-                    b.ToTable("AuthorFanfic");
+                    b.ToTable("AuthorFanfic", (string)null);
                 });
 
             modelBuilder.Entity("DiscordWhoIs.Core.Databases.DbModels.Alias", b =>
