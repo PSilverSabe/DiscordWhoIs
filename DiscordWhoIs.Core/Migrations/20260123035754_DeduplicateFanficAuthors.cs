@@ -11,10 +11,10 @@ namespace DiscordWhoIs.Core.Migrations
         protected override void Up(MigrationBuilder migrationBuilder) =>
             // Remove duplicate FanficId + AuthorId pairs
             migrationBuilder.Sql(@"
-                DELETE FROM FanficAuthors
+                DELETE FROM AuthorFanfic
                 WHERE rowid NOT IN (
                     SELECT MIN(rowid)
-                    FROM FanficAuthors
+                    FROM AuthorFanfic
                     GROUP BY FanficId, AuthorId
                 );
                 ");

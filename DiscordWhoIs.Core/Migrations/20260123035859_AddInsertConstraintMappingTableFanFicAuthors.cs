@@ -9,8 +9,8 @@ namespace DiscordWhoIs.Core.Migrations
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.CreateIndex(
-                name: "IX_FanficAuthors_FanficId_AuthorId",
-                table: "FanficAuthors",
+                name: "IX_AuthorFanfic_FanficId_AuthorId",
+                table: "AuthorFanfic",
                 columns: new[] { "FanficId", "AuthorId" },
                 unique: true);
 
