@@ -20,7 +20,8 @@ using Serilog;
 // ------------------------------------------------------------
 // Configure file logging BEFORE host build
 // ------------------------------------------------------------
-string logRoot = Path.Combine("databases", "logging");
+var dirNo = new DirectoryInfo(AppContext.BaseDirectory);
+string logRoot = Path.Combine(dirNo.FullName, "databases", "logging");
 Directory.CreateDirectory(logRoot);
 
 Log.Logger = new LoggerConfiguration()
