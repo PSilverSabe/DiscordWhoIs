@@ -5,121 +5,181 @@ using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Core.Filters;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+// ------------------------------------------------------------
+// Configure file logging BEFORE building the app
+// ------------------------------------------------------------
+string logRoot = Path.Combine("databases", "logging");
+Directory.CreateDirectory(logRoot);
 
-// If a repository-level appsettings.json exists, load it so all projects share the same settings.
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(
+        new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile(
+                $"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")}.json",
+                optional: true)
+            .Build())
+    .Enrich.FromLogContext()
+    .WriteTo.File(
+        path: Path.Combine(logRoot, "web-app-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14,
+        shared: true)
+    .WriteTo.File(
+        path: Path.Combine(logRoot, "web-errors-.log"),
+        restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error,
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        shared: true)
+    .CreateLogger();
+
+try
 {
-    var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    string? found = null;
-    while (dir != null)
+    WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog(); // Replace default ASP.NET logging
+
+    // ------------------------------------------------------------
+    // Shared appsettings.json resolution
+    // ------------------------------------------------------------
+
     {
-        string candidate = Path.Combine(dir.FullName, "appsettings.json");
-        if (File.Exists(candidate))
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        string? found = null;
+
+        while (dir != null)
         {
-            found = candidate;
-            break;
-        }
-        dir = dir.Parent;
-    }
-
-    if (!string.IsNullOrWhiteSpace(found))
-    {
-        // ConfigurationManager (builder.Configuration) implements IConfigurationBuilder so AddJsonFile is available
-        builder.Configuration.AddJsonFile(found, optional: false, reloadOnChange: true);
-    }
-}
-
-// Read URLs from configuration ("WebHost:Urls") or environment ("ASPNETCORE_URLS")
-string? configuredUrls = builder.Configuration.GetValue<string>("WebHost:Urls")
-                     ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-if (!string.IsNullOrWhiteSpace(configuredUrls))
-{
-    builder.WebHost.UseUrls(configuredUrls);
-}
-
-// Register Core services (DbContextFactory + repositories)
-builder.Services.AddDiscordWhoIsCore(builder.Configuration);
-
-// Register the ApiKeyFilter so TypeFilter can resolve it
-builder.Services.AddScoped<ApiKeyFilter>();
-
-// Health checks
-builder.Services.AddHealthChecks();
-
-builder.Services.AddControllers(); // your normal web registrations
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-WebApplication app = builder.Build();
-
-using (IServiceScope scope = app.Services.CreateScope())
-{
-    IDbContextFactory<BotDbContext> factory = scope.ServiceProvider
-        .GetRequiredService<IDbContextFactory<BotDbContext>>();
-
-    using BotDbContext context = factory.CreateDbContext();
-
-    context.Database.Migrate();
-
-    IEnumerable<string> pending = context.Database.GetPendingMigrations();
-    if (pending.Any())
-    {
-        throw new InvalidOperationException(
-            $"Pending migrations detected: {string.Join(", ", pending)}");
-    }
-
-    DbConnection connection = context.Database.GetDbConnection();
-    try
-    {
-        if (connection.State != System.Data.ConnectionState.Open)
-        {
-            connection.Open();
-        }
-
-        using DbCommand cmd = connection.CreateCommand();
-        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
-        cmd.ExecuteNonQuery();
-    }
-    finally
-    {
-        if (connection.State == System.Data.ConnectionState.Open)
-        {
-            connection.Close();
-        }
-    }
-}
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseAuthorization();
-
-// Map health checks and return a JSON body (prevents some clients from erroring on an empty response)
-app.MapHealthChecks("/health", new HealthCheckOptions
-{
-    ResponseWriter = async (context, report) =>
-    {
-        context.Response.ContentType = "application/json; charset=utf-8";
-        var payload = new
-        {
-            status = report.Status.ToString(),
-            totalDuration = report.TotalDuration,
-            checks = report.Entries.Select(e => new
+            string candidate = Path.Combine(dir.FullName, "appsettings.json");
+            if (File.Exists(candidate))
             {
-                name = e.Key,
-                status = e.Value.Status.ToString(),
-                description = e.Value.Description,
-                duration = e.Value.Duration
-            })
-        };
-        await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+                found = candidate;
+                break;
+            }
+            dir = dir.Parent;
+        }
+
+        if (!string.IsNullOrWhiteSpace(found))
+        {
+            builder.Configuration.AddJsonFile(found, optional: false, reloadOnChange: true);
+        }
     }
-});
 
-app.MapControllers();
+    // ------------------------------------------------------------
+    // URL binding
+    // ------------------------------------------------------------
 
-app.Run();
+    string? configuredUrls = builder.Configuration.GetValue<string>("WebHost:Urls")
+                         ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+
+    if (!string.IsNullOrWhiteSpace(configuredUrls))
+    {
+        builder.WebHost.UseUrls(configuredUrls);
+    }
+
+    // ------------------------------------------------------------
+    // Services
+    // ------------------------------------------------------------
+
+    builder.Services.AddDiscordWhoIsCore(builder.Configuration);
+    builder.Services.AddScoped<ApiKeyFilter>();
+    builder.Services.AddHealthChecks();
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+
+    WebApplication app = builder.Build();
+
+    // ------------------------------------------------------------
+    // Database migration & validation
+    // ------------------------------------------------------------
+
+    using (IServiceScope scope = app.Services.CreateScope())
+    {
+        IDbContextFactory<BotDbContext> factory =
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<BotDbContext>>();
+
+        using BotDbContext context = factory.CreateDbContext();
+
+        Log.Information("Applying database migrations (Web)");
+
+        context.Database.Migrate();
+
+        IEnumerable<string> pending = context.Database.GetPendingMigrations();
+        if (pending.Any())
+        {
+            throw new InvalidOperationException(
+                $"Pending migrations detected: {string.Join(", ", pending)}");
+        }
+
+        DbConnection connection = context.Database.GetDbConnection();
+        try
+        {
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                connection.Open();
+            }
+
+            using DbCommand cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+            cmd.ExecuteNonQuery();
+
+            Log.Information("SQLite WAL checkpoint completed (Web)");
+        }
+        finally
+        {
+            if (connection.State == System.Data.ConnectionState.Open)
+            {
+                connection.Close();
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Middleware
+    // ------------------------------------------------------------
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    app.UseAuthorization();
+
+    app.MapHealthChecks("/health", new HealthCheckOptions
+    {
+        ResponseWriter = async (context, report) =>
+        {
+            context.Response.ContentType = "application/json; charset=utf-8";
+            var payload = new
+            {
+                status = report.Status.ToString(),
+                totalDuration = report.TotalDuration,
+                checks = report.Entries.Select(e => new
+                {
+                    name = e.Key,
+                    status = e.Value.Status.ToString(),
+                    description = e.Value.Description,
+                    duration = e.Value.Duration
+                })
+            };
+            await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+        }
+    });
+
+    app.MapControllers();
+
+    Log.Information("Web host starting");
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Web host terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}

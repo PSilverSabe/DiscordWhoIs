@@ -15,83 +15,138 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
-IHost host = Host.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((context, config) =>
-    {
-        // If a repository-level appsettings.json exists, add it so the worker uses the same settings.
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        string? found = null;
-        while (dir != null)
-        {
-            string candidate = Path.Combine(dir.FullName, "appsettings.json");
-            if (File.Exists(candidate))
-            {
-                found = candidate;
-                break;
-            }
-            dir = dir.Parent;
-        }
+// ------------------------------------------------------------
+// Configure file logging BEFORE host build
+// ------------------------------------------------------------
+string logRoot = Path.Combine("databases", "logging");
+Directory.CreateDirectory(logRoot);
 
-        if (!string.IsNullOrWhiteSpace(found))
-        {
-            config.AddJsonFile(found, optional: false, reloadOnChange: true);
-        }
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(
+        new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile(
+                $"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")}.json",
+                optional: true)
+            .Build())
+    .Enrich.FromLogContext()
+    .WriteTo.File(
+        path: Path.Combine(logRoot, "app-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14,
+        shared: true)
+    .WriteTo.File(
+        path: Path.Combine(logRoot, "errors-.log"),
+        restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error,
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        shared: true)
+    .CreateLogger();
 
-        config.AddUserSecrets<Program>();
-    })
-    .ConfigureServices((hostContext, services) =>
-    {
-        // Register Core services (DbContextFactory + repositories)
-        services.AddDiscordWhoIsCore(hostContext.Configuration);
-
-        // Discord.NET core services
-        services.AddSingleton<DiscordSocketClient>();
-        services.AddSingleton(sp => new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
-
-        // Command registry and bot service
-        services.AddSingleton<AuthorDescriptionModalHandler>();
-        services.AddSingleton<CommandRegistry>();
-        services.AddSingleton<ActiveUsersCacheService>();
-        services.AddSingleton<BotService>();
-
-        // Background worker wrapper that runs the bot
-        services.AddHostedService<Worker>();
-    })
-    .Build();
-
-using (IServiceScope scope = host.Services.CreateScope())
+try
 {
-    IDbContextFactory<BotDbContext> factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<BotDbContext>>();
-
-    using BotDbContext context = factory.CreateDbContext();
-    context.Database.Migrate();
-
-    IEnumerable<string> pending = context.Database.GetPendingMigrations();
-    if (pending.Any())
-    {
-        throw new InvalidOperationException($"Pending migrations detected: {string.Join(", ", pending)}");
-    }
-
-    DbConnection connection = context.Database.GetDbConnection();
-    try
-    {
-        if (connection.State != System.Data.ConnectionState.Open)
+    IHost host = Host.CreateDefaultBuilder(args)
+        .UseSerilog() // <-- replace default logging pipeline
+        .ConfigureAppConfiguration((context, config) =>
         {
-            connection.Open();
+            // If a repository-level appsettings.json exists, add it so the worker uses the same settings.
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            string? found = null;
+
+            while (dir != null)
+            {
+                string candidate = Path.Combine(dir.FullName, "appsettings.json");
+                if (File.Exists(candidate))
+                {
+                    found = candidate;
+                    break;
+                }
+                dir = dir.Parent;
+            }
+
+            if (!string.IsNullOrWhiteSpace(found))
+            {
+                config.AddJsonFile(found, optional: false, reloadOnChange: true);
+            }
+
+            config.AddUserSecrets<Program>();
+        })
+        .ConfigureServices((hostContext, services) =>
+        {
+            // Register Core services (DbContextFactory + repositories)
+            services.AddDiscordWhoIsCore(hostContext.Configuration);
+
+            // Discord.NET core services
+            services.AddSingleton<DiscordSocketClient>();
+            services.AddSingleton(sp =>
+                new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
+
+            // Command registry and bot service
+            services.AddSingleton<AuthorDescriptionModalHandler>();
+            services.AddSingleton<CommandRegistry>();
+            services.AddSingleton<ActiveUsersCacheService>();
+            services.AddSingleton<BotService>();
+
+            // Background worker wrapper that runs the bot
+            services.AddHostedService<Worker>();
+        })
+        .Build();
+
+    // ------------------------------------------------------------
+    // Database migration & validation
+    // ------------------------------------------------------------
+
+    using (IServiceScope scope = host.Services.CreateScope())
+    {
+        IDbContextFactory<BotDbContext> factory =
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<BotDbContext>>();
+
+        using BotDbContext context = factory.CreateDbContext();
+
+        Log.Information("Applying database migrations");
+        context.Database.Migrate();
+
+        IEnumerable<string> pending = context.Database.GetPendingMigrations();
+        if (pending.Any())
+        {
+            throw new InvalidOperationException(
+                $"Pending migrations detected: {string.Join(", ", pending)}");
         }
 
-        using DbCommand cmd = connection.CreateCommand();
-        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
-        cmd.ExecuteNonQuery();
-    }
-    finally
-    {
-        if (connection.State == System.Data.ConnectionState.Open)
+        DbConnection connection = context.Database.GetDbConnection();
+        try
         {
-            connection.Close();
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                connection.Open();
+            }
+
+            using DbCommand cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+            cmd.ExecuteNonQuery();
+
+            Log.Information("SQLite WAL checkpoint completed");
+        }
+        finally
+        {
+            if (connection.State == System.Data.ConnectionState.Open)
+            {
+                connection.Close();
+            }
         }
     }
+
+    Log.Information("Host starting");
+    await host.RunAsync();
 }
-
-await host.RunAsync();
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Host terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
