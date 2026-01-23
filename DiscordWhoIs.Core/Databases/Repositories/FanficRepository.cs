@@ -7,7 +7,6 @@ using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Core.Databases.Repositories.Helpers.AuthorRepository;
 using DiscordWhoIs.Core.Databases.Repositories.Helpers.AuthorRepository.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Core.Databases.Repositories;
@@ -71,14 +70,11 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
         }
 
         await using BotDbContext context = _dbContextFactory.CreateDbContext();
-        await using IDbContextTransaction tx = await context.Database.BeginTransactionAsync();
 
         try
         {
             Dictionary<string, Author> authorsByCanonical = await ImportAuthorsAsync(context, parsedContent);
             await ImportFanficsAsync(context, parsedContent, authorsByCanonical);
-
-            await tx.CommitAsync();
             _logger.LogInformation("Fanfic import completed successfully.");
             return true;
         }
