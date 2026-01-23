@@ -263,7 +263,6 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
         FanficJsonImport fanficJsonImport,
         Dictionary<string, Author> authorsByCanonical)
     {
-
         var fanfic = new Fanfic
         {
             Link = fanficJsonImport.Link,
@@ -283,11 +282,19 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
             DateUpdated = fanficJsonImport.DateUpdated
         };
 
+        // Enforce set semantics
+        var seenAuthorIds = new HashSet<int>();
+
         foreach (string rawAuthor in fanficJsonImport.Authors)
         {
             (string canonical, _) = ParseAuthor(rawAuthor);
 
-            if (authorsByCanonical.TryGetValue(canonical, out Author? author))
+            if (!authorsByCanonical.TryGetValue(canonical, out Author? author))
+            {
+                continue;
+            }
+
+            if (seenAuthorIds.Add(author.AuthorId))
             {
                 fanfic.Authors.Add(author);
             }

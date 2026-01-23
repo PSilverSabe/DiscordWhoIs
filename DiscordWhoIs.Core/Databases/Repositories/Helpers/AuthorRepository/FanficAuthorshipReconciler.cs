@@ -9,34 +9,32 @@ public static class FanficAuthorshipReconciler
         Fanfic existing,
         Fanfic incoming)
     {
-        var existingById = existing.Authors
+        var existingAuthorsById = existing.Authors
+            .GroupBy(a => a.AuthorId)
+            .Select(g => g.First())
             .ToDictionary(a => a.AuthorId);
 
-        var incomingById = incoming.Authors
+        var incomingAuthorsById = incoming.Authors
+            .GroupBy(a => a.AuthorId)
+            .Select(g => g.First())
             .ToDictionary(a => a.AuthorId);
 
-        var added = new List<Author>();
-        var removed = new List<Author>();
+        var added = incomingAuthorsById.Values
+            .Where(a => !existingAuthorsById.ContainsKey(a.AuthorId))
+            .ToList();
 
-        // Add new authors
-        foreach (Author author in incomingById.Values)
+        var removed = existingAuthorsById.Values
+            .Where(a => !incomingAuthorsById.ContainsKey(a.AuthorId))
+            .ToList();
+
+        foreach (Author? author in added)
         {
-            if (!existingById.ContainsKey(author.AuthorId))
-            {
-                existing.Authors.Add(author);
-                added.Add(author);
-            }
+            existing.Authors.Add(author);
         }
 
-        // Remove stale authors
-        for (int i = existing.Authors.Count - 1; i >= 0; i--)
+        foreach (Author? author in removed)
         {
-            Author author = existing.Authors.ElementAt(i);
-            if (!incomingById.ContainsKey(author.AuthorId))
-            {
-                existing.Authors.Remove(author);
-                removed.Add(author);
-            }
+            existing.Authors.Remove(author);
         }
 
         return new AuthorshipDelta(added, removed);
