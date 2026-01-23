@@ -23,28 +23,33 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
 
     public async Task AddOrUpdateAsync(string alias, string real)
     {
+        alias = alias.Trim();
+        real = real.Trim();
+
         if (string.IsNullOrWhiteSpace(alias))
         {
+            _logger.LogInformation("Alias cannot be empty.");
             throw new ArgumentException("Alias cannot be empty.", nameof(alias));
         }
 
         if (string.IsNullOrWhiteSpace(real))
         {
+            _logger.LogInformation($"Real Name cannot be empty.");
             throw new ArgumentException("RealUserName username cannot be empty.", nameof(real));
         }
-
-        alias = alias.Trim();
-        real = real.Trim();
 
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
         // Find the author entity
+        _logger.LogInformation("Finding Author Information.");
         Author authorEntity = await context.Authors.FirstOrDefaultAsync(a => a.Ao3ProfileName == real)
             ?? throw new InvalidOperationException($"No author found with AO3 profile name '{real}'.");
 
         // Find existing alias
+        _logger.LogInformation($"Finding Aliases for Author: {authorEntity.Ao3ProfileName}");
         Alias? existing = await context.Aliases.FindAsync(alias);
 
+        _logger.LogInformation($"Updating or Adding new alias.");
         if (existing != null)
         {
             existing.AuthorId = authorEntity.AuthorId;

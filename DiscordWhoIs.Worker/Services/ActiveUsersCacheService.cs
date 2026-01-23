@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Discord;
 using Discord.WebSocket;
+using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Services;
 
@@ -15,13 +16,19 @@ public class ActiveUsersCacheService : IDisposable
         = new();
 
     private readonly Timer _pruneTimer;
+    private readonly ILogger<ActiveUsersCacheService>? _logger;
 
     private readonly TimeSpan _maxCacheDuration = TimeSpan.FromHours(12);
     private readonly TimeSpan _pruneInterval = TimeSpan.FromMinutes(5);
 
-    public ActiveUsersCacheService() =>
+    public ActiveUsersCacheService(ILogger<ActiveUsersCacheService>? logger = null)
+    {
+        _logger = logger;
+        _logger?.LogDebug("ActiveUsersCacheService initializing. Prune interval: {Interval}", _pruneInterval);
         // Set up a timer to prune old messages periodically
         _pruneTimer = new Timer(PruneOldMessages, null, _pruneInterval, _pruneInterval);
+        _logger?.LogInformation("ActiveUsersCacheService started.");
+    }
 
     // Add a new message to the cache
     public void AddMessage(SocketMessage message)
@@ -30,11 +37,11 @@ public class ActiveUsersCacheService : IDisposable
         {
             return;
         }
-
         List<(ulong UserId, DateTimeOffset Timestamp)> list = _messageCache.GetOrAdd(message.Channel.Id, _ => new List<(ulong, DateTimeOffset)>());
         lock (list)
         {
             list.Add((message.Author.Id, message.Timestamp));
+            _logger?.LogDebug("Added message from user {UserId} in channel {ChannelId} at {Timestamp}", message.Author.Id, message.Channel.Id, message.Timestamp);
         }
     }
 
@@ -49,7 +56,9 @@ public class ActiveUsersCacheService : IDisposable
         DateTimeOffset cutoff = DateTimeOffset.UtcNow.AddHours(-hours);
         lock (list)
         {
-            return list.Where(x => x.Timestamp >= cutoff).Select(x => x.UserId).Distinct();
+            IEnumerable<ulong> users = list.Where(x => x.Timestamp >= cutoff).Select(x => x.UserId).Distinct();
+            _logger?.LogDebug("Retrieved {Count} active users for channel {ChannelId} in last {Hours} hours", users.Count(), channelId, hours);
+            return users;
         }
     }
 
@@ -63,7 +72,11 @@ public class ActiveUsersCacheService : IDisposable
             List<(ulong UserId, DateTimeOffset Timestamp)> list = kvp.Value;
             lock (list)
             {
-                list.RemoveAll(x => x.Timestamp < cutoff);
+                int removed = list.RemoveAll(x => x.Timestamp < cutoff);
+                if (removed > 0)
+                {
+                    _logger?.LogDebug("Pruned {Removed} messages from channel {ChannelId}", removed, kvp.Key);
+                }
             }
         }
     }

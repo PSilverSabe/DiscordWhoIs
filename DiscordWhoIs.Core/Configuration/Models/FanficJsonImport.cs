@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using DiscordWhoIs.Core.Configuration.JsonConverters;
+using DiscordWhoIs.Core.Databases.DbModels;
 
 
 namespace DiscordWhoIs.Core.Configuration.Models;
@@ -14,6 +15,9 @@ public class FanficJsonImport
 
     [JsonConverter(typeof(EmbeddedJsonStringConverter<List<string>>))]
     public required List<string> Authors { get; set; } = null!;
+
+    [JsonIgnore]
+    private List<Author> MappedAuthors { get; set; } = [];
 
     public required string Summary { get; set; } = null!;
 
