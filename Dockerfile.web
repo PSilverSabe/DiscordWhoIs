@@ -42,6 +42,7 @@ COPY --from=build /src/appsettings.json ./appsettings.json
 ARG APP_USER=discordwhois
 RUN adduser --disabled-password --gecos "" $APP_USER
 RUN mkdir -p /databases && chown -R $APP_USER:$APP_USER /databases
+RUN mkdir -p /databases/logging && chown -R $APP_USER:$APP_USER /databases
 USER $APP_USER
 
 ENTRYPOINT ["./DiscordWhoIs.Web"]
