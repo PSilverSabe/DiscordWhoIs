@@ -18,11 +18,9 @@ public class RegisterAuthorDescriptionCommand(
     private readonly ILogger<WhoIsCommandModule> _logger = logger;
     private readonly AuthorDescriptionModalHandler _authorDescriptionModalHandler = authorDescriptionModalHandler;
 
-    [SlashCommand("author-description", "Register a description. For single-line descriptions, use parameter. Call ao3-register beforehand.")]
+    [SlashCommand("author-description", "Register a description. Call ao3-register beforehand.")]
 
     public async Task RegisterAo3AuthorDescriptionAsync(
-    [Summary("Description (optional)", description: "Single-line description (optional)")]
-    string? description = null,
     [Summary("Discord-User (Admin Only)", description: "Register for another user (Admin Only)")]
     SocketGuildUser? user = null)
     {
@@ -32,22 +30,6 @@ public class RegisterAuthorDescriptionCommand(
             await RespondAsync(
                 "This command must be used in a server.",
                 ephemeral: true);
-            return;
-        }
-
-        // If the user provided a single-line description, process immediately
-        if (!string.IsNullOrWhiteSpace(description))
-        {
-            // Determine the target user
-            SocketGuildUser targetUser = user ?? callingUser;
-
-            // Call shared handler method
-            await _authorDescriptionModalHandler.HandleDescriptionAsync(
-                interaction: Context.Interaction,
-                callingUser: callingUser,
-                targetUser: targetUser,
-                description: description.Trim());
-
             return;
         }
 

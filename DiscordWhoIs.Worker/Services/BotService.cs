@@ -54,7 +54,8 @@ public class BotService
         _client.MessageReceived += OnMessageReceivedAsync;
 
         AuthorDescriptionModalHandler modalHandler = services.GetRequiredService<AuthorDescriptionModalHandler>();
-        client.ModalSubmitted += modalHandler.HandleAsync;
+        // TODO: We should ideally have a more robust way to route modals to handlers. 
+        client.ModalSubmitted += modalHandler.HandleDescriptionAsyncViaModal;
     }
 
     public async Task StartAsync()

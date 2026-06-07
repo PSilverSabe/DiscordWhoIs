@@ -17,7 +17,7 @@ public sealed class AuthorDescriptionModalHandler(
     private readonly ILogger<AuthorDescriptionModalHandler> _logger = logger;
     private readonly List<string> _statusLines = [];
 
-    public async Task HandleAsync(SocketModal modal)
+    public async Task HandleDescriptionAsyncViaModal(SocketModal modal)
     {
         if (!modal.Data.CustomId.StartsWith("author_description:"))
         {
