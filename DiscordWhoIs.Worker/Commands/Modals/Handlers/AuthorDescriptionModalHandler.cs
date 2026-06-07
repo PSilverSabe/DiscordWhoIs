@@ -39,14 +39,17 @@ public sealed class AuthorDescriptionModalHandler(
             return;
         }
 
-        SocketGuildUser targetUser = callingUser.Guild.GetUser(targetUserId);
-
-        if (targetUser == null)
+        SocketGuildUser? targetUser = null;
+        if (targetUserId != 0)
         {
-            await modal.FollowupAsync(
-                "Target user could not be resolved.",
-                ephemeral: true);
-            return;
+            targetUser = callingUser.Guild.GetUser(targetUserId);
+            if (targetUser == null)
+            {
+                await modal.FollowupAsync(
+                    "Target user could not be resolved.",
+                    ephemeral: true);
+                return;
+            }
         }
 
         await HandleDescriptionAsync(

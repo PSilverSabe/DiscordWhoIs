@@ -45,8 +45,8 @@ public class RegisterAuthorDescriptionCommand(
         // Pre-fill existing description if available
         string existingDescription = author.Description ?? string.Empty;
 
-        // Otherwise, open a modal for multi-line input
-        ulong targetUserId = user?.Id ?? callingUser.Id;
+        // Open a modal for multi-line input
+        ulong targetUserId = user?.Id ?? 0;
 
         Modal modal = new ModalBuilder()
             .WithTitle("Register Author Description")
