@@ -20,7 +20,7 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
     public async Task RegisterAo3AuthorAsync(
         [Summary("Ao3-Username", "Ao3 username or configured alias")]
         string authorName,
-        [Summary("Discord-User", description: "Register for another user (Admin Only)")]
+        [Summary("Discord-User (Admin Only)", description: "Register for another user (Admin Only)")]
         SocketGuildUser? user = null
     )
     {
@@ -76,6 +76,7 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
         if (isUserTryingAdminOverride)
         {
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                "**Only** Admins can use the **discord-user** parameter. " +
                 "You do not have permission to register AO3 authors for other Discord users.",
                 _logger);
             return;

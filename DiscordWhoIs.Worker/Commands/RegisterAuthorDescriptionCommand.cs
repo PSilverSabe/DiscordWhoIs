@@ -18,19 +18,16 @@ public class RegisterAuthorDescriptionCommand(
     private readonly ILogger<WhoIsCommandModule> _logger = logger;
     private readonly AuthorDescriptionModalHandler _authorDescriptionModalHandler = authorDescriptionModalHandler;
 
-    [SlashCommand(
-        "author-description", "Register a description. For single-line descriptions, use parameter. Call ao3-register beforehand."
-        )]
+    [SlashCommand("author-description", "Register a description. For single-line descriptions, use parameter. Call ao3-register beforehand.")]
 
     public async Task RegisterAo3AuthorDescriptionAsync(
-    [Summary("description", description: "Single-line description (optional)")]
+    [Summary("Description (optional)", description: "Single-line description (optional)")]
     string? description = null,
-    [Summary("discord-user", description: "Register for another user (Admin only)")]
+    [Summary("Discord-User (Admin Only)", description: "Register for another user (Admin Only)")]
     SocketGuildUser? user = null)
     {
         // Attempt to cast the calling user
-        var callingUser = Context.User as SocketGuildUser;
-        if (callingUser == null)
+        if (Context.User is not SocketGuildUser callingUser)
         {
             await RespondAsync(
                 "This command must be used in a server.",

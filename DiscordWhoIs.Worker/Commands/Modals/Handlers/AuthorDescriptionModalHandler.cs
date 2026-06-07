@@ -109,13 +109,15 @@ public sealed class AuthorDescriptionModalHandler(
             // User registering for themselves
             else if (isSelfRegister)
             {
-                _statusLines.Add($"Attempting to register a description to your Discord user.");
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
+                    $"Attempting to register a description to your Discord user.", _logger);
             }
             // Non-admin trying to register for another user
             else if (isUserTryingAdminOverride)
             {
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
-                    "You do not have permission to register AO3 authors for other Discord users.", _logger);
+                    "**Only** Admins can use the **discord-user** parameter. " +
+                    "You do not have permission to register AO3 authors for other Discord users. ", _logger);
                 return;
             }
 
