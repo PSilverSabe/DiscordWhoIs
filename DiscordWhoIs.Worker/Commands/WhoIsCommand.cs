@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
@@ -116,35 +115,51 @@ public class WhoIsCommandModule(
         _logger.LogInformation("Recent Works (10 Most Recent):\n{Works}",
             string.Join("\n", canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10)
                 .Select(x => $"{x.Title} ({x.Link})")));
-        // Send embed as a separate normal message
-        EmbedBuilder embed = new EmbedBuilder()
-            .WithTitle($"Author Profile: {canonicalAuthor.Ao3ProfileName}")
-            .AddField("Total Works",
-                $"{canonicalAuthor.Fanfics.Count}",
-                inline: true)
-            .AddField("Total Kudos",
-                $"{canonicalAuthor.Fanfics.Sum(x => x.KudosCount)}",
-                inline: true)
-            .AddField("Total Hits",
-                $"{canonicalAuthor.Fanfics.Sum(x => x.HitCount)}",
-                inline: true)
-            .AddField("Ao3 Profile",
-                $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}",
-                inline: false)
-            .AddField("Description",
-                $"{canonicalAuthor.Description ?? "No description for author."}\n\n",
-                inline: false)
-            .AddField("Recent Works (10 Most Recent)",
-                compiledString.ToString(),
-                inline: false)
-            .WithFooter("Source: Archive of Our Own", "https://archiveofourown.org/images/ao3_logos/logo_42.png")
-            .WithColor(Color.DarkBlue);
 
-        Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
+        Embed? embedBuilt = null;
+        try
+        {
+            EmbedBuilder embed = new EmbedBuilder()
+                .WithTitle($"Author Profile: {canonicalAuthor.Ao3ProfileName}")
+                .AddField("Total Works",
+                    $"{canonicalAuthor.Fanfics.Count}",
+                    inline: true)
+                .AddField("Total Kudos",
+                    $"{canonicalAuthor.Fanfics.Sum(x => x.KudosCount)}",
+                    inline: true)
+                .AddField("Total Hits",
+                    $"{canonicalAuthor.Fanfics.Sum(x => x.HitCount)}",
+                    inline: true)
+                .AddField("Ao3 Profile",
+                    $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}",
+                    inline: false)
+                .AddField("Description",
+                    $"{canonicalAuthor.Description ?? "No description for author."}\n\n",
+                    inline: false)
+                .AddField("Recent Works (10 Most Recent)",
+                    compiledString.ToString(),
+                    inline: false)
+                .WithFooter("Source: Archive of Our Own", "https://archiveofourown.org/images/ao3_logos/logo_42.png")
+                .WithColor(Color.DarkBlue);
+            embedBuilt = embed.Build();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while building embed for {User}", canonicalAuthor.Ao3ProfileName);
+            throw;
+        }
 
-        await Context.Channel.SendMessageAsync(embed: embed.Build());
-
-        _logger.LogInformation("Fetched fics for {User}", requested);
+        if (embedBuilt != null)
+        {
+            await Context.Channel.SendMessageAsync(embed: embedBuilt);
+            _logger.LogInformation("Fetched fics for {User}", requested);
+        }
+        else
+        {
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                $"Failed to build embed for **{canonicalAuthor.Ao3ProfileName}**. Please try again later.", _logger);
+            _logger.LogWarning("Embed was null for {User}, skipping sending embed.", canonicalAuthor.Ao3ProfileName);
+        }
     }
 
 }
