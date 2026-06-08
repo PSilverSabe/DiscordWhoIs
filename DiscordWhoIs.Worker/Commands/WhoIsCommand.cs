@@ -96,15 +96,26 @@ public class WhoIsCommandModule(
         statusLines.Add($"Fetched {canonicalAuthor.Fanfics.Count} fics for **{canonicalAuthor.Ao3ProfileName}**.");
         await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
+        _logger.LogInformation("Compiling Title and Link for top 10 most recently updated fics for {User}", canonicalAuthor.Ao3ProfileName);
         var compiledString = new StringBuilder();
         foreach (Fanfic? fic in canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10))
         {
+            _logger.LogInformation("Processing fic: {Title} ({Link})", fic.Title, fic.Link);
             string truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
             compiledString.AppendLine($"**{truncatedTitle}**");
             compiledString.AppendLine($"{fic.Link}\n");
         }
+        _logger.LogInformation("Finished compiling recent works for {User}", canonicalAuthor.Ao3ProfileName);
 
-
+        _logger.LogInformation("Preparing embed for {User}", canonicalAuthor.Ao3ProfileName);
+        _logger.LogInformation("Author: {Author}", canonicalAuthor.Ao3ProfileName);
+        _logger.LogInformation("Total Words: {Words}", canonicalAuthor.Fanfics.Sum(x => x.WordCount));
+        _logger.LogInformation("Total Kudos: {Kudos}", canonicalAuthor.Fanfics.Sum(x => x.KudosCount));
+        _logger.LogInformation("Total Hits: {Hits}", canonicalAuthor.Fanfics.Sum(x => x.HitCount));
+        _logger.LogInformation("Description: {Description}", canonicalAuthor.Description ?? "No description for author.");
+        _logger.LogInformation("Recent Works (10 Most Recent):\n{Works}",
+            string.Join("\n", canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10)
+                .Select(x => $"{x.Title} ({x.Link})")));
         // Send embed as a separate normal message
         EmbedBuilder embed = new EmbedBuilder()
             .WithTitle($"Author Profile: {canonicalAuthor.Ao3ProfileName}")
@@ -130,8 +141,6 @@ public class WhoIsCommandModule(
             .WithColor(Color.DarkBlue);
 
         Thread.Sleep(TimeSpan.FromSeconds(1)); // Simulate processing time
-
-
 
         await Context.Channel.SendMessageAsync(embed: embed.Build());
 

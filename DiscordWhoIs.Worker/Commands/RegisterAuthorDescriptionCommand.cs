@@ -21,7 +21,7 @@ public class RegisterAuthorDescriptionCommand(
     [SlashCommand("author-description", "Register a description. Call ao3-register beforehand.")]
 
     public async Task RegisterAo3AuthorDescriptionAsync(
-    [Summary("Discord-User (Admin Only)", description: "Register for another user (Admin Only)")]
+    [Summary("Discord-User", description: "Register for another user (Admin Only)")]
     SocketGuildUser? user = null)
     {
         // Attempt to cast the calling user

@@ -20,7 +20,7 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
     public async Task RegisterAo3AuthorAsync(
         [Summary("Ao3-Username", "Ao3 username or configured alias")]
         string authorName,
-        [Summary("Discord-User (Admin Only)", description: "Register for another user (Admin Only)")]
+        [Summary("Discord-User", description: "Register for another user (Admin Only)")]
         SocketGuildUser? user = null
     )
     {
