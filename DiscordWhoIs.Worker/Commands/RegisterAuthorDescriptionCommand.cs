@@ -56,7 +56,7 @@ public class RegisterAuthorDescriptionCommand(
                 customId: "message",
                 style: TextInputStyle.Paragraph,
                 placeholder: "Enter the author description",
-                maxLength: 500,
+                maxLength: WorkerConstants.EmbedFieldMaxLength,
                 required: true,
                 value: existingDescription)
             .Build();

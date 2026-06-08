@@ -6,7 +6,6 @@ using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Worker.Commands.Helpers;
 using DiscordWhoIs.Worker.Services;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands;
@@ -61,9 +60,9 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUse
 
         string messageContent = string.Join(", ", mentions);
 
-        if (messageContent.Length > 2000)
+        if (messageContent.Length > WorkerConstants.MessageMaxLength)
         {
-            messageContent = string.Concat(messageContent.AsSpan(0, 1990), "...");
+            messageContent = string.Concat(messageContent.AsSpan(0, WorkerConstants.MessageMaxLength - 10), "...");
         }
 
         await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,

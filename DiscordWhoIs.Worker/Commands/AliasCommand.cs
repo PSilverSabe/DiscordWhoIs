@@ -136,11 +136,10 @@ public class AliasCommandModule(
             return;
         }
 
-        const int maxChunkSize = 1900;
         var sb = new StringBuilder();
         foreach (string? line in entries)
         {
-            if (sb.Length + line.Length + 1 > maxChunkSize)
+            if (sb.Length + line.Length + 1 > WorkerConstants.MessageMaxLength)
             {
                 await FollowupAsync($"```\n{sb}\n```", ephemeral: true);
                 sb.Clear();

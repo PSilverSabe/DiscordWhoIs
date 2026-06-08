@@ -95,52 +95,106 @@ public class WhoIsCommandModule(
         statusLines.Add($"Fetched {canonicalAuthor.Fanfics.Count} fics for **{canonicalAuthor.Ao3ProfileName}**.");
         await ModifyOriginalResponseAsync(msg => msg.Content = string.Join("\n", statusLines));
 
-        _logger.LogInformation("Compiling Title and Link for top 10 most recently updated fics for {User}", canonicalAuthor.Ao3ProfileName);
+        _logger.LogInformation("Compiling Title and Link for top {Limit} most recently updated fics for {User}",
+            WorkerConstants.RecentWorksDefaultLimit, canonicalAuthor.Ao3ProfileName);
+
         var compiledString = new StringBuilder();
-        foreach (Fanfic? fic in canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10))
+        foreach (Fanfic? fic in canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(WorkerConstants.RecentWorksDefaultLimit))
         {
             _logger.LogInformation("Processing fic: {Title} ({Link})", fic.Title, fic.Link);
-            string truncatedTitle = fic.Title.Length > 256 ? string.Concat(fic.Title.AsSpan(0, 253), "...") : fic.Title;
+
+            // Truncate title using constants
+            string truncatedTitle;
+            if (!string.IsNullOrEmpty(fic.Title) && fic.Title.Length > WorkerConstants.TitleMaxLength)
+            {
+                truncatedTitle = string.Concat(fic.Title.AsSpan(0, WorkerConstants.TitleMaxLength - WorkerConstants.TitleTruncateReserve), "...");
+            }
+            else
+            {
+                truncatedTitle = fic.Title ?? string.Empty;
+            }
+
             compiledString.AppendLine($"**{truncatedTitle}**");
             compiledString.AppendLine($"{fic.Link}\n");
         }
         _logger.LogInformation("Finished compiling recent works for {User}", canonicalAuthor.Ao3ProfileName);
 
-        _logger.LogInformation("Preparing embed for {User}", canonicalAuthor.Ao3ProfileName);
-        _logger.LogInformation("Author: {Author}", canonicalAuthor.Ao3ProfileName);
-        _logger.LogInformation("Total Words: {Words}", canonicalAuthor.Fanfics.Sum(x => x.WordCount));
-        _logger.LogInformation("Total Kudos: {Kudos}", canonicalAuthor.Fanfics.Sum(x => x.KudosCount));
-        _logger.LogInformation("Total Hits: {Hits}", canonicalAuthor.Fanfics.Sum(x => x.HitCount));
-        _logger.LogInformation("Description: {Description}", canonicalAuthor.Description ?? "No description for author.");
-        _logger.LogInformation("Recent Works (10 Most Recent):\n{Works}",
-            string.Join("\n", canonicalAuthor.Fanfics.OrderByDescending(x => x.FicLastUpdated).Take(10)
-                .Select(x => $"{x.Title} ({x.Link})")));
-
         Embed? embedBuilt = null;
         try
         {
+            // Build embed and track how many fields we add before adding 'Recent Works' chunks.
             EmbedBuilder embed = new EmbedBuilder()
-                .WithTitle($"Author Profile: {canonicalAuthor.Ao3ProfileName}")
-                .AddField("Total Works",
-                    $"{canonicalAuthor.Fanfics.Count}",
-                    inline: true)
-                .AddField("Total Kudos",
-                    $"{canonicalAuthor.Fanfics.Sum(x => x.KudosCount)}",
-                    inline: true)
-                .AddField("Total Hits",
-                    $"{canonicalAuthor.Fanfics.Sum(x => x.HitCount)}",
-                    inline: true)
-                .AddField("Ao3 Profile",
-                    $"https://archiveofourown.org/users/{canonicalAuthor.Ao3ProfileName}",
-                    inline: false)
-                .AddField("Description",
-                    $"{canonicalAuthor.Description ?? "No description for author."}\n\n",
-                    inline: false)
-                .AddField("Recent Works (10 Most Recent)",
-                    compiledString.ToString(),
-                    inline: false)
-                .WithFooter("Source: Archive of Our Own", "https://archiveofourown.org/images/ao3_logos/logo_42.png")
-                .WithColor(Color.DarkBlue);
+                .WithTitle($"Author Profile: {canonicalAuthor.Ao3ProfileName}");
+
+            int preAddedFields = 0;
+
+            embed.AddField("Total Works",
+                $"{canonicalAuthor.Fanfics.Count}",
+                inline: true);
+            preAddedFields++;
+
+            embed.AddField("Total Kudos",
+                $"{canonicalAuthor.Fanfics.Sum(x => x.KudosCount)}",
+                inline: true);
+            preAddedFields++;
+
+            embed.AddField("Total Hits",
+                $"{canonicalAuthor.Fanfics.Sum(x => x.HitCount)}",
+                inline: true);
+            preAddedFields++;
+
+            embed.AddField("Ao3 Profile",
+                string.Format(WorkerConstants.Ao3ProfileUrlFormat, canonicalAuthor.Ao3ProfileName),
+                inline: false);
+            preAddedFields++;
+
+            embed.AddField("Description",
+                $"{canonicalAuthor.Description ?? "No description for author."}\n\n",
+                inline: false);
+            preAddedFields++;
+
+            // Discord embed field value max length is defined in constants.
+            string recentText = compiledString.ToString();
+            List<string> recentChunks = SplitTextIntoFieldSizedChunks(recentText, WorkerConstants.EmbedFieldMaxLength);
+
+            int maxRecentFieldsAllowed = Math.Max(1, WorkerConstants.EmbedMaxFields - preAddedFields);
+
+            if (recentChunks.Count > maxRecentFieldsAllowed)
+            {
+                _logger.LogWarning("Recent works require {Required} fields but only {Allowed} can be used; truncating most older entries.",
+                    recentChunks.Count, maxRecentFieldsAllowed);
+
+                // Keep the allowed number of chunks and collapse overflow into the final field.
+                var limited = recentChunks.Take(maxRecentFieldsAllowed).ToList();
+
+                if (recentChunks.Count > maxRecentFieldsAllowed)
+                {
+                    // Combine the overflow chunks into a single string and trim to fit into a field.
+                    string overflow = string.Join("\n", recentChunks.Skip(maxRecentFieldsAllowed - 1));
+                    // Reserve a small amount for ellipsis; use constants for max length.
+                    int reserve = Math.Min(WorkerConstants.EmbedFieldMaxLength, 24);
+                    if (overflow.Length > WorkerConstants.EmbedFieldMaxLength - reserve)
+                    {
+                        overflow = string.Concat(overflow.AsSpan(0, WorkerConstants.EmbedFieldMaxLength - reserve), "...");
+                    }
+                    limited[limited.Count - 1] = overflow;
+                }
+
+                recentChunks = limited;
+            }
+
+            // Add chunked recent works fields
+            for (int i = 0; i < recentChunks.Count; i++)
+            {
+                string fieldTitle = recentChunks.Count == 1
+                    ? $"Recent Works ({WorkerConstants.RecentWorksDefaultLimit} Most Recent)"
+                    : $"Recent Works ({i + 1}/{recentChunks.Count})";
+                embed.AddField(fieldTitle, recentChunks[i], inline: false);
+            }
+
+            embed = embed.WithFooter(WorkerConstants.Ao3FooterText, WorkerConstants.Ao3FooterIcon)
+                         .WithColor(Color.DarkBlue);
+
             embedBuilt = embed.Build();
         }
         catch (Exception ex)
@@ -159,6 +213,49 @@ public class WhoIsCommandModule(
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 $"Failed to build embed for **{canonicalAuthor.Ao3ProfileName}**. Please try again later.", _logger);
             _logger.LogWarning("Embed was null for {User}, skipping sending embed.", canonicalAuthor.Ao3ProfileName);
+        }
+
+        // Local helper: split text by line boundaries into chunks where each chunk <= maxLen.
+        static List<string> SplitTextIntoFieldSizedChunks(string text, int maxLen)
+        {
+            string[] lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var chunks = new List<string>();
+            var current = new StringBuilder();
+
+            foreach (string line in lines)
+            {
+                // If a single line is longer than maxLen, truncate the line itself.
+                string candidateLine = line;
+                if (candidateLine.Length > maxLen)
+                {
+                    candidateLine = candidateLine.Substring(0, maxLen - 3) + "...";
+                }
+
+                // If adding this line would exceed maxLen, push current chunk and start new.
+                if (current.Length + candidateLine.Length + 1 > maxLen)
+                {
+                    if (current.Length > 0)
+                    {
+                        chunks.Add(current.ToString().TrimEnd());
+                        current.Clear();
+                    }
+                }
+
+                current.AppendLine(candidateLine);
+            }
+
+            if (current.Length > 0)
+            {
+                chunks.Add(current.ToString().TrimEnd());
+            }
+
+            // Ensure at least one chunk
+            if (chunks.Count == 0)
+            {
+                chunks.Add(string.Empty);
+            }
+
+            return chunks;
         }
     }
 

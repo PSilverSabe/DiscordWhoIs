@@ -123,7 +123,7 @@ public class PurgeCommand
         DateTimeOffset cutoff = DateTimeOffset.UtcNow.AddDays(-14);
 
         IEnumerable<IMessage> messages = await channel
-            .GetMessagesAsync(limit: 200)
+            .GetMessagesAsync(limit: WorkerConstants.DiscordGetMessagesLimit)
             .FlattenAsync();
 
         var toDelete = messages
