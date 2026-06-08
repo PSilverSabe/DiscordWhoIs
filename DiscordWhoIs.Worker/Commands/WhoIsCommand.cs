@@ -159,8 +159,8 @@ public class WhoIsCommandModule(
                 List<string> chunk = entryChunks[i];
                 int countInChunk = chunk.Count;
                 string fieldTitle = entryChunks.Count == 1
-                    ? $"Recent Works (Top {WorkerConstants.RecentWorksDefaultLimit} Most Recent fics) — {countInChunk} fic{(countInChunk == 1 ? "" : "s")}"
-                    : $"Recent Works (Top {WorkerConstants.RecentWorksDefaultLimit} Most Recent fics) — Part {i + 1}/{entryChunks.Count} — {countInChunk} fic{(countInChunk == 1 ? "" : "s")}";
+                    ? $"Recent Works ({WorkerConstants.RecentWorksDefaultLimit} Most Recent fics)"
+                    : $"Recent Works ({WorkerConstants.RecentWorksDefaultLimit} Most Recent fics) — Part {i + 1}/{entryChunks.Count} — {countInChunk} fic{(countInChunk == 1 ? "" : "s")}";
 
                 string fieldValue = string.Join("\n\n", chunk);
                 embed.AddField(fieldTitle, fieldValue, inline: false);
