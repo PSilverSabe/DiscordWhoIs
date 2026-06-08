@@ -162,8 +162,19 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
             .Where(a => canonicalNames.Contains(a.Ao3ProfileName))
             .ToDictionaryAsync(a => a.Ao3ProfileName, StringComparer.OrdinalIgnoreCase);
 
-        // For each parsed author, ensure an Author entity exists (create if not).
-        // Note: newly created Author objects are tracked by the context but not yet persisted.
+        // PRELOAD alias names already present in the database so we don't attempt to insert duplicates.
+        // Use a case-insensitive comparer to match DB collation/intent.
+        var existingAliasNames = new HashSet<string>(
+            await context.Aliases.Select(a => a.AliasUserName).ToListAsync(),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Also track aliases that are already added to the current DbContext change tracker
+        // (prevents adding the same alias twice during a single import run).
+        var trackedAliasNames = context.ChangeTracker.Entries<Alias>()
+            .Where(e => e.State != EntityState.Detached)
+            .Select(e => e.Entity.AliasUserName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         foreach ((string canonical, string? alias) in parsedAuthors)
         {
             if (!authors.TryGetValue(canonical, out Author? author))
@@ -181,13 +192,25 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
                 authors[canonical] = author;
             }
 
-            // If an alias was provided and it doesn't already exist for the author,
-            // add it to the author's Aliases collection. The Alias uses the AuthorId
-            // FK which may be zero until the entity is saved; EF will fix relationships
-            // based on tracked navigation properties when SaveChanges is called.
-            if (alias != null && !author.Aliases.Any(a => a.AliasUserName == alias))
+            if (alias != null)
             {
-                author.Aliases.Add(new Alias(alias, author.AuthorId));
+                // Check three places before creating a new Alias:
+                // 1) already present on this Author instance,
+                // 2) present in the DB (existingAliasNames),
+                // 3) already created/tracked during this import (trackedAliasNames).
+                bool aliasAlreadyOnAuthor = author.Aliases.Any(a => string.Equals(a.AliasUserName, alias, StringComparison.OrdinalIgnoreCase));
+                bool aliasAlreadyKnown = existingAliasNames.Contains(alias) || trackedAliasNames.Contains(alias);
+
+                if (!aliasAlreadyOnAuthor && !aliasAlreadyKnown)
+                {
+                    // Create and attach the alias to this author.
+                    // Also add to trackedAliasNames so subsequent iterations don't create the same alias again.
+                    var newAlias = new Alias(alias, author.AuthorId);
+                    author.Aliases.Add(newAlias);
+                    trackedAliasNames.Add(alias);
+                }
+                // If aliasAlreadyKnown is true, we skip adding a duplicate here.
+                // ResolveAliasConflictsAsync will handle reassigning DB aliases to the correct canonical author.
             }
         }
 
@@ -225,7 +248,7 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
 
         // There may also be Alias objects that were created during this import and are
         // only tracked in-memory (not yet saved). Include those tracked entries as well.
-        var trackedConflicts = context.ChangeTracker.Entries<Alias>()
+        IEnumerable<Alias> trackedConflicts = context.ChangeTracker.Entries<Alias>()
             .Where(e => e.State != EntityState.Detached && aliasNames.Contains(e.Entity.AliasUserName))
             .Select(e => e.Entity);
 
