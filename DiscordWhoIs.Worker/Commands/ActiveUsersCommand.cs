@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Worker.Commands.Helpers;
+using DiscordWhoIs.Worker.Constants;
 using DiscordWhoIs.Worker.Services;
 using Microsoft.Extensions.Logging;
 

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordWhoIs.Worker.Constants;
 
 namespace DiscordWhoIs.Worker.Commands;
 

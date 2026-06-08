@@ -1,4 +1,4 @@
-﻿namespace DiscordWhoIs.Worker;
+﻿namespace DiscordWhoIs.Worker.Constants;
 
 /// <summary>
 /// Central place for constants used by the Worker Constants.

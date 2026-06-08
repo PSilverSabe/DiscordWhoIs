@@ -8,16 +8,15 @@ using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
+using DiscordWhoIs.Worker.Constants;
 using Microsoft.Extensions.Logging;
 
-namespace DiscordWhoIs.Worker;
+namespace DiscordWhoIs.Worker.Commands;
 
 public class WhoIsCommandModule(
-    IFanficRepository fanficRepository,
     IAuthorRepository authorRepository,
     ILogger<WhoIsCommandModule> logger) : InteractionModuleBase<SocketInteractionContext>
 {
-    private readonly IFanficRepository _fanfic = fanficRepository;
     private readonly IAuthorRepository _author = authorRepository;
     private readonly ILogger<WhoIsCommandModule> _logger = logger;
 
@@ -96,6 +95,7 @@ public class WhoIsCommandModule(
 
         _logger.LogInformation("Compiling Title and Link for top {Limit} most recently updated fics for {User}",
             WorkerConstants.RecentWorksDefaultLimit, canonicalAuthor.Ao3ProfileName);
+
         // Build a list of individual entry strings (one per fic) so we can split into fields
         var recentEntries = new List<string>();
         var mostRecentFics = canonicalAuthor.Fanfics
@@ -149,34 +149,9 @@ public class WhoIsCommandModule(
                 inline: false);
             preAddedFields++;
 
-            // Split the recent entries into chunks that respect the embed field max length.
-            List<List<string>> entryChunks = SplitEntriesIntoFieldSizedChunks(recentEntries, WorkerConstants.EmbedFieldMaxLength);
-
+            // Use the shared chunker helper
             int maxRecentFieldsAllowed = Math.Max(1, WorkerConstants.EmbedMaxFields - preAddedFields);
-
-            if (entryChunks.Count > maxRecentFieldsAllowed)
-            {
-                _logger.LogWarning("Recent works require {Required} fields but only {Allowed} can be used; truncating older entries.",
-                    entryChunks.Count, maxRecentFieldsAllowed);
-
-                // Keep the first allowed chunks and collapse remaining entries into the final allowed chunk.
-                var limited = entryChunks.Take(maxRecentFieldsAllowed).ToList();
-
-                if (entryChunks.Count > maxRecentFieldsAllowed)
-                {
-                    IEnumerable<string> overflowEntries = entryChunks.Skip(maxRecentFieldsAllowed - 1).SelectMany(c => c);
-                    string overflowText = string.Join("\n\n", overflowEntries);
-                    int reserve = Math.Min(WorkerConstants.EmbedFieldMaxLength, 24);
-                    if (overflowText.Length > WorkerConstants.EmbedFieldMaxLength - reserve)
-                    {
-                        overflowText = overflowText.Substring(0, WorkerConstants.EmbedFieldMaxLength - reserve) + "...";
-                    }
-                    // Replace the last allowed chunk with a single chunk containing the overflow (already trimmed)
-                    limited[limited.Count - 1] = new List<string> { overflowText };
-                }
-
-                entryChunks = limited;
-            }
+            List<List<string>> entryChunks = EmbedChunker.ChunkEntries(recentEntries, WorkerConstants.EmbedFieldMaxLength, maxRecentFieldsAllowed);
 
             // Add chunked recent works fields. Each field title indicates Top N and item count for that field.
             for (int i = 0; i < entryChunks.Count; i++)
@@ -184,8 +159,8 @@ public class WhoIsCommandModule(
                 List<string> chunk = entryChunks[i];
                 int countInChunk = chunk.Count;
                 string fieldTitle = entryChunks.Count == 1
-                    ? $"Recent Works ({WorkerConstants.RecentWorksDefaultLimit} Most Recent fics)"
-                    : $"Recent Works ({WorkerConstants.RecentWorksDefaultLimit} Most Recent fics) — Part {i + 1}/{entryChunks.Count}";
+                    ? $"Recent Works (Top {WorkerConstants.RecentWorksDefaultLimit} Most Recent fics) — {countInChunk} fic{(countInChunk == 1 ? "" : "s")}"
+                    : $"Recent Works (Top {WorkerConstants.RecentWorksDefaultLimit} Most Recent fics) — Part {i + 1}/{entryChunks.Count} — {countInChunk} fic{(countInChunk == 1 ? "" : "s")}";
 
                 string fieldValue = string.Join("\n\n", chunk);
                 embed.AddField(fieldTitle, fieldValue, inline: false);
@@ -214,52 +189,6 @@ public class WhoIsCommandModule(
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 $"Failed to build embed for **{canonicalAuthor.Ao3ProfileName}**. Please try again later.", _logger);
             _logger.LogWarning("Embed was null for {User}, skipping sending embed.", canonicalAuthor.Ao3ProfileName);
-        }
-
-        // Local helper: split a list of per-fic entries into chunks where each chunk's combined text <= maxLen.
-        static List<List<string>> SplitEntriesIntoFieldSizedChunks(List<string> entries, int maxLen)
-        {
-            var chunks = new List<List<string>>();
-            var current = new List<string>();
-            int currentLen = 0;
-
-            foreach (string entry in entries)
-            {
-                // If a single entry is longer than maxLen, truncate it to fit.
-                string candidate = entry;
-                if (candidate.Length > maxLen)
-                {
-                    candidate = candidate.Substring(0, maxLen - 3) + "...";
-                }
-
-                // +2 accounts for the separator we'll use between entries ("\n\n")
-                int entryLenWithSep = candidate.Length + (current.Count > 0 ? 2 : 0);
-
-                if (currentLen + entryLenWithSep > maxLen)
-                {
-                    if (current.Count > 0)
-                    {
-                        chunks.Add(new List<string>(current));
-                        current.Clear();
-                        currentLen = 0;
-                    }
-                }
-
-                current.Add(candidate);
-                currentLen += candidate.Length + (current.Count > 1 ? 2 : 0);
-            }
-
-            if (current.Count > 0)
-            {
-                chunks.Add(current);
-            }
-
-            if (chunks.Count == 0)
-            {
-                chunks.Add(new List<string> { string.Empty });
-            }
-
-            return chunks;
         }
     }
 

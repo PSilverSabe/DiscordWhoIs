@@ -5,6 +5,7 @@ using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Modals.Handlers;
+using DiscordWhoIs.Worker.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands;
