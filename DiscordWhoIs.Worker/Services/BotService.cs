@@ -170,9 +170,8 @@ public class BotService
             foreach (ModuleInfo? module in _interactions.Modules)
             {
                 _logger.LogInformation(
-                    "{Module} ({Type})",
-                    module.Name,
-                    module.Type.FullName);
+                    "{Module}",
+                    module.Name);
             }
 
             await _registry.RegisterGlobalAsync();
