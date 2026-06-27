@@ -66,6 +66,11 @@ public class BotService
     public async Task StartAsync()
     {
         await _client.LoginAsync(TokenType.Bot, _discordConfig.Token);
+
+        // Load all modules
+        await _interactions.AddModulesAsync(Assembly.GetExecutingAssembly(), _services);
+        _logger.LogInformation("Discovered {Count} slash command modules.", _interactions.SlashCommands.Count);
+
         await _client.StartAsync();
     }
 
@@ -86,10 +91,6 @@ public class BotService
     private async Task OnReadyAsync()
     {
         _logger.LogInformation("Connected as {User}", _client.CurrentUser.Username);
-
-        // Load all modules
-        await _interactions.AddModulesAsync(Assembly.GetExecutingAssembly(), _services);
-        _logger.LogInformation("Discovered {Count} slash command modules.", _interactions.SlashCommands.Count);
 
         // Clean duplicates globally and per guild
         await CleanupDuplicatesAsync();

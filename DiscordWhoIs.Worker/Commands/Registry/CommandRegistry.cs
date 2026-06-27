@@ -46,6 +46,23 @@ public class CommandRegistry(
 
     private void LogDiff(string scope, IList<string> remote, IList<string> local)
     {
+        IEnumerable<IGrouping<string, SlashCommandInfo>> duplicates = _interactions.SlashCommands
+            .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1);
+
+        foreach (IGrouping<string, SlashCommandInfo>? group in duplicates)
+        {
+            _logger.LogError("Duplicate slash command: {Name}", group.Key);
+
+            foreach (SlashCommandInfo? command in group)
+            {
+                _logger.LogError(
+                    "  Module: {Module}, Method: {Method}",
+                    command.Module.Name,
+                    command.MethodName);
+            }
+        }
+
         var remoteSet = remote.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var localSet = local.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
