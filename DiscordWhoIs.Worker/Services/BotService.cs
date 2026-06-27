@@ -27,6 +27,7 @@ public class BotService
     private readonly ActiveUsersCacheService _cache;
     private readonly IAuthorRepository _authorRepository;
     private readonly FanficEmbedResponderService _embedResponder;
+    private readonly ModalRouter _modalRouter;
 
     public BotService(
         DiscordSocketClient client,
@@ -37,7 +38,8 @@ public class BotService
         DiscordConfiguration discordOptions,
         ActiveUsersCacheService cache,
         IAuthorRepository authorRepository,
-        FanficEmbedResponderService embedResponder
+        FanficEmbedResponderService embedResponder,
+        ModalRouter modalRouter
         )
     {
         _client = client;
@@ -49,6 +51,7 @@ public class BotService
         _cache = cache;
         _authorRepository = authorRepository;
         _embedResponder = embedResponder;
+        _modalRouter = modalRouter;
 
         _client.Log += LogAsync;
         _client.Ready += OnReadyAsync;
@@ -56,9 +59,8 @@ public class BotService
         _client.JoinedGuild += OnJoinedGuildAsync; // auto-register commands for new guilds
         _client.MessageReceived += OnMessageReceivedAsync;
 
-        AuthorDescriptionModalHandler modalHandler = services.GetRequiredService<AuthorDescriptionModalHandler>();
-        // TODO: We should ideally have a more robust way to route modals to handlers. 
-        client.ModalSubmitted += modalHandler.HandleDescriptionAsyncViaModal;
+        _modalRouter.Register("author_description:", services.GetRequiredService<AuthorDescriptionModalHandler>().HandleDescriptionAsyncViaModal);
+        client.ModalSubmitted += _modalRouter.RouteAsync;
     }
 
     public async Task StartAsync()

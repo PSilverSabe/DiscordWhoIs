@@ -93,6 +93,7 @@ try
             services.AddSingleton<ActiveUsersCacheService>();
             services.AddSingleton<BotService>();
             services.AddSingleton<FanficEmbedResponderService>();
+            services.AddSingleton<ModalRouter>();
 
             // Background worker wrapper that runs the bot
             services.AddHostedService<Worker>();

@@ -1,9 +1,23 @@
 ﻿<linker>
-	<assembly fullname="DiscordWhoIs.Worker">
-		<type fullname="DiscordWhoIs.Worker.Services.BotService" preserve="all" />
-		<!-- Preserve all command modules in this namespace via pattern -->
-		<type fullname="DiscordWhoIs.Worker.Commands.*" preserve="all" />
-	</assembly>
+  <assembly fullname="DiscordWhoIs.Worker">
+    <type fullname="DiscordWhoIs.Worker.Services.BotService" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.WhoIsCommandModule" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.RegisterAo3AuthorCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.RegisterAuthorDescriptionCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.ActiveUsersCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.PurgeCommand" preserve="all" />
+    <!-- Alias commands -->
+    <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasCommandGroup" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasAddCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasRemoveCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasListCommand" preserve="all" />
+    <!-- EmbedPoster commands -->
+    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterCommandGroup" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterEnableCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterSetChannelCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterSetDeduplicationCommand" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterStatusCommand" preserve="all" />
+  </assembly>
 
 	<!-- Preserve Discord.Net assemblies used by reflection -->
 	<assembly fullname="Discord.Net.Interactions" preserve="all"/>

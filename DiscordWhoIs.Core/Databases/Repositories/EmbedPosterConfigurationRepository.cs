@@ -17,7 +17,7 @@ public sealed class EmbedPosterConfigurationRepository(
 
     public async Task<EmbedPosterConfiguration> GetAsync()
     {
-        await using BotDbContext context = _dbContextFactory.CreateDbContext();
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
         return await context.EmbedPosterConfiguration
                    .AsNoTracking()
                    .FirstAsync(c => c.Id == ConfigId);
@@ -25,7 +25,7 @@ public sealed class EmbedPosterConfigurationRepository(
 
     public async Task SetEnabledAsync(bool enabled)
     {
-        await using BotDbContext context = _dbContextFactory.CreateDbContext();
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
         EmbedPosterConfiguration config = await context.EmbedPosterConfiguration
             .FirstAsync(c => c.Id == ConfigId);
 
@@ -37,7 +37,7 @@ public sealed class EmbedPosterConfigurationRepository(
 
     public async Task SetChannelAsync(ulong? channelId)
     {
-        await using BotDbContext context = _dbContextFactory.CreateDbContext();
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
         EmbedPosterConfiguration config = await context.EmbedPosterConfiguration
             .FirstAsync(c => c.Id == ConfigId);
 
@@ -49,7 +49,7 @@ public sealed class EmbedPosterConfigurationRepository(
 
     public async Task SetDeduplicationWindowAsync(int minutes)
     {
-        await using BotDbContext context = _dbContextFactory.CreateDbContext();
+        await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
         EmbedPosterConfiguration config = await context.EmbedPosterConfiguration
             .FirstAsync(c => c.Id == ConfigId);
 

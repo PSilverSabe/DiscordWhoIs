@@ -22,6 +22,20 @@ public sealed class FanficEmbedResponderService(
     private readonly IEmbedPosterConfigurationRepository _configRepository = configRepository;
     private readonly IMemoryCache _cache = cache;
     private readonly ILogger<FanficEmbedResponderService> _logger = logger;
+    private static readonly TimeSpan s_configCacheDuration = TimeSpan.FromMinutes(1);
+    private const string ConfigCacheKey = "embedposter:config";
+
+    private async Task<EmbedPosterConfiguration> GetConfigAsync()
+    {
+        if (_cache.TryGetValue(ConfigCacheKey, out EmbedPosterConfiguration? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        EmbedPosterConfiguration config = await _configRepository.GetAsync();
+        _cache.Set(ConfigCacheKey, config, s_configCacheDuration);
+        return config;
+    }
 
     public async Task HandleMessageAsync(SocketMessage message)
     {
@@ -41,7 +55,7 @@ public sealed class FanficEmbedResponderService(
             return;
         }
 
-        EmbedPosterConfiguration config = await _configRepository.GetAsync();
+        EmbedPosterConfiguration config = await GetConfigAsync();
 
         if (!config.Enabled)
         {

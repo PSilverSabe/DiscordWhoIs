@@ -21,6 +21,20 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
     {
         base.OnModelCreating(modelBuilder);
 
+        // EmbedPosterConfiguration configuration
+        modelBuilder.Entity<EmbedPosterConfiguration>(entity =>
+        {
+            entity.ToTable("EmbedPosterConfiguration");
+            entity.HasKey(e => e.Id);
+            entity.HasData(new EmbedPosterConfiguration
+            {
+                Id = 1,
+                Enabled = false,
+                ChannelId = null,
+                DeduplicationWindowMinutes = 10
+            });
+        });
+
         // Alias configuration
         modelBuilder.Entity<Alias>(entity =>
         {
