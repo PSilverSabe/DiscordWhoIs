@@ -147,6 +147,34 @@ public class BotService
                     command.MethodName);
             }
 
+            _logger.LogInformation("Slash commands:");
+            foreach (SlashCommandInfo? c in _interactions.SlashCommands)
+            {
+                _logger.LogInformation("  {Name}", c.Name);
+            }
+
+            _logger.LogInformation("User commands:");
+            foreach (ContextCommandInfo? c in _interactions.ContextCommands.Where(c => c.CommandType == ApplicationCommandType.User))
+            {
+                _logger.LogInformation("  {Name}", c.Name);
+            }
+
+            _logger.LogInformation("Message commands:");
+            foreach (ContextCommandInfo? c in _interactions.ContextCommands.Where(c => c.CommandType == ApplicationCommandType.Message))
+            {
+                _logger.LogInformation("  {Name}", c.Name);
+            }
+
+            _logger.LogInformation("Modules: {Count}", _interactions.Modules.Count);
+
+            foreach (ModuleInfo? module in _interactions.Modules)
+            {
+                _logger.LogInformation(
+                    "{Module} ({Type})",
+                    module.Name,
+                    module.Type.FullName);
+            }
+
             await _registry.RegisterGlobalAsync();
         }
 

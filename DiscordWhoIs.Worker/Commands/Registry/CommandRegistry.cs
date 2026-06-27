@@ -28,7 +28,15 @@ public class CommandRegistry(
 
         LogDiff("GLOBAL", [.. remote.Select(r => r.Name)], local);
 
-        await _interactions.RegisterCommandsGloballyAsync();
+        try
+        {
+            await _interactions.RegisterCommandsGloballyAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to register global commands.");
+            throw;
+        }
     }
 
     /// <summary>
