@@ -24,7 +24,6 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
         // EmbedPosterConfiguration configuration
         modelBuilder.Entity<EmbedPosterConfiguration>(entity =>
         {
-            entity.ToTable("EmbedPosterConfiguration");
             entity.HasKey(e => e.Id);
             entity.HasData(new EmbedPosterConfiguration
             {

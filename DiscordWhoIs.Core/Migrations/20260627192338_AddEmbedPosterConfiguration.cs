@@ -8,9 +8,7 @@ namespace DiscordWhoIs.Core.Migrations
     public partial class AddEmbedPosterConfiguration : Migration
     {
         /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.CreateTable(
+        protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.CreateTable(
                 name: "EmbedPosterConfiguration",
                 columns: table => new
                 {
@@ -24,13 +22,9 @@ namespace DiscordWhoIs.Core.Migrations
                 {
                     table.PrimaryKey("PK_EmbedPosterConfiguration", x => x.Id);
                 });
-        }
 
         /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropTable(
+        protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropTable(
                 name: "EmbedPosterConfiguration");
-        }
     }
 }
