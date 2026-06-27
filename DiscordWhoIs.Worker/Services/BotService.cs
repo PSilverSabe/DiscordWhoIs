@@ -117,6 +117,36 @@ public class BotService
         else
         {
             _logger.LogInformation("Registering global commands.");
+            var duplicates = _interactions.SlashCommands
+                .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            if (duplicates.Count > 0)
+            {
+                foreach (IGrouping<string, SlashCommandInfo>? group in duplicates)
+                {
+                    _logger.LogError("Duplicate command '{Name}'", group.Key);
+
+                    foreach (SlashCommandInfo? command in group)
+                    {
+                        _logger.LogError(
+                            "  Module={Module}, Method={Method}",
+                            command.Module.Name,
+                            command.MethodName);
+                    }
+                }
+            }
+
+            foreach (SlashCommandInfo? command in _interactions.SlashCommands.OrderBy(c => c.Name))
+            {
+                _logger.LogInformation(
+                    "{Name} -> {Module}.{Method}",
+                    command.Name,
+                    command.Module.Name,
+                    command.MethodName);
+            }
+
             await _registry.RegisterGlobalAsync();
         }
 
