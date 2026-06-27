@@ -124,7 +124,7 @@ namespace DiscordWhoIs.Core.Migrations
                     b.ToTable("Authors");
                 });
 
-            modelBuilder.Entity("DiscordWhoIs.Core.Databases.DbModels.EmbedPosterSettings", b =>
+            modelBuilder.Entity("DiscordWhoIs.Core.Databases.DbModels.EmbedPosterConfiguration", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -141,7 +141,7 @@ namespace DiscordWhoIs.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("EmbedPosterSettings");
+                    b.ToTable("EmbedPosterConfiguration");
                 });
 
             modelBuilder.Entity("DiscordWhoIs.Core.Databases.DbModels.Fanfic", b =>

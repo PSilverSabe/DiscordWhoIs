@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DiscordWhoIs.Core.Migrations
 {
     [DbContext(typeof(BotDbContext))]
-    [Migration("20260627214919_AddEmbedPosterConfiguration-1")]
-    partial class AddEmbedPosterConfiguration1
+    [Migration("20260627222328_ResolveConfig")]
+    partial class ResolveConfig
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
