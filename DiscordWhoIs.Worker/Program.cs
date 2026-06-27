@@ -49,7 +49,7 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     IHost host = Host.CreateDefaultBuilder(args)
-        .UseSerilog() // <-- replace default logging pipeline
+        .UseSerilog() // replace default logging pipeline
         .ConfigureAppConfiguration((context, config) =>
         {
             // If a repository-level appsettings.json exists, add it so the worker uses the same settings.
@@ -84,11 +84,15 @@ try
             services.AddSingleton(sp =>
                 new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
 
+            // Add Memory Cache
+            services.AddMemoryCache();
+
             // Command registry and bot service
             services.AddSingleton<AuthorDescriptionModalHandler>();
             services.AddSingleton<CommandRegistry>();
             services.AddSingleton<ActiveUsersCacheService>();
             services.AddSingleton<BotService>();
+            services.AddSingleton<FanficEmbedResponderService>();
 
             // Background worker wrapper that runs the bot
             services.AddHostedService<Worker>();

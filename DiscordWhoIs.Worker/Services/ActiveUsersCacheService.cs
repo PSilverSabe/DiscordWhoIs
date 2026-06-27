@@ -56,8 +56,8 @@ public class ActiveUsersCacheService : IDisposable
         DateTimeOffset cutoff = DateTimeOffset.UtcNow.AddHours(-hours);
         lock (list)
         {
-            IEnumerable<ulong> users = list.Where(x => x.Timestamp >= cutoff).Select(x => x.UserId).Distinct();
-            _logger?.LogDebug("Retrieved {Count} active users for channel {ChannelId} in last {Hours} hours", users.Count(), channelId, hours);
+            List<ulong> users = list.Where(x => x.Timestamp >= cutoff).Select(x => x.UserId).Distinct().ToList();
+            _logger?.LogDebug("Retrieved {Count} active users for channel {ChannelId} in last {Hours} hours", users.Count, channelId, hours);
             return users;
         }
     }

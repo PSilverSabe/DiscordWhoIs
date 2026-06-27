@@ -50,7 +50,7 @@ public class Author
     public override string ToString()
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Author Id: {Ao3ProfileName}");
+        sb.AppendLine($"Author Id: {AuthorId}");
         sb.AppendLine($"AO3 Profile Name: {Ao3ProfileName}");
         sb.AppendLine($"FanFic.Net Id: {FanficNetId}");
         sb.AppendLine($"FanFic.Net Profile Name: {FanficNetProfileName}");

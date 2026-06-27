@@ -43,10 +43,11 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
 
         // Return fanfics where the author is either the primary AO3 profile name
         // or matches one of the stored aliases.
+        string normalized = name.Trim().ToLowerInvariant();
         return await context.Authors
             .Where(a =>
-                a.Ao3ProfileName == name ||
-                a.Aliases.Any(al => al.AliasUserName == name))
+                a.Ao3ProfileName == normalized ||
+                a.Aliases.Any(al => al.AliasUserName == normalized))
             .SelectMany(a => a.Fanfics)
             .AsNoTracking()
             .ToListAsync();
@@ -68,6 +69,15 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
         return await context.Fanfics
             .AsNoTracking()
             .FirstOrDefaultAsync(f => f.Title == title);
+    }
+
+    public async Task<Fanfic?> GetByLinkAsync(string link)
+    {
+        await using BotDbContext context = _dbContextFactory.CreateDbContext();
+        return await context.Fanfics
+            .Include(f => f.Authors)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Link == link);
     }
 
     // High level import entry point ----------------------------------------
@@ -296,13 +306,14 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
             // Reassign the alias to point to the canonical author.
             // Set both the navigation property and FK so EF's change tracker keeps
             // everything consistent for both new/tracked entities and persisted rows.
+            string oldName = conflict.Author?.Ao3ProfileName ?? "<unknown>";
             conflict.Author = canonicalAuthor;
             conflict.AuthorId = canonicalAuthor.AuthorId;
 
             _logger.LogWarning(
                 "Alias '{Alias}' reassigned from '{Old}' to '{New}'",
                 conflict.AliasUserName,
-                conflict.Author?.Ao3ProfileName ?? "<unknown>",
+                oldName,
                 canonicalAuthor.Ao3ProfileName);
         }
     }

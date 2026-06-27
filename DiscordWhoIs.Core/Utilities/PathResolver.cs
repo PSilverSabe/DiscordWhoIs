@@ -42,6 +42,11 @@ public static class PathResolver
         return Path.Combine(dir, fileName);
     }
 
+    /// <summary>
+    /// Walks up the directory tree to find the solution root by locating a .sln file.
+    /// Only safe to call in development environments — will throw in production
+    /// where no .sln file exists.
+    /// </summary>
     public static string GetSolutionRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

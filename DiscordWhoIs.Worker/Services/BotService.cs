@@ -26,6 +26,7 @@ public class BotService
     private readonly DiscordConfiguration _discordConfig;
     private readonly ActiveUsersCacheService _cache;
     private readonly IAuthorRepository _authorRepository;
+    private readonly FanficEmbedResponderService _embedResponder;
 
     public BotService(
         DiscordSocketClient client,
@@ -35,7 +36,8 @@ public class BotService
         ILogger<BotService> logger,
         DiscordConfiguration discordOptions,
         ActiveUsersCacheService cache,
-        IAuthorRepository authorRepository
+        IAuthorRepository authorRepository,
+        FanficEmbedResponderService embedResponder
         )
     {
         _client = client;
@@ -46,6 +48,7 @@ public class BotService
         _discordConfig = discordOptions;
         _cache = cache;
         _authorRepository = authorRepository;
+        _embedResponder = embedResponder;
 
         _client.Log += LogAsync;
         _client.Ready += OnReadyAsync;
@@ -67,6 +70,11 @@ public class BotService
     private Task OnMessageReceivedAsync(SocketMessage message)
     {
         _cache.AddMessage(message);
+
+        // Fire and forget — don't await in the event handler to avoid
+        // blocking the Discord gateway thread
+        _ = _embedResponder.HandleMessageAsync(message);
+
         return Task.CompletedTask;
     }
 

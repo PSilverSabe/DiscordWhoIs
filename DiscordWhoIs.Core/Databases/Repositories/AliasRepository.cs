@@ -47,13 +47,13 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
 
         // Find existing alias
         _logger.LogInformation($"Finding Aliases for Author: {authorEntity.Ao3ProfileName}");
-        Alias? existing = await context.Aliases.FindAsync(alias);
+        Alias? entity = await context.Aliases.FirstOrDefaultAsync(a => a.AliasUserName == alias);
 
         _logger.LogInformation($"Updating or Adding new alias.");
-        if (existing != null)
+        if (entity != null)
         {
-            existing.AuthorId = authorEntity.AuthorId;
-            context.Aliases.Update(existing);
+            entity.AuthorId = authorEntity.AuthorId;
+            context.Aliases.Update(entity);
         }
         else
         {
@@ -76,7 +76,7 @@ public class AliasRepository(IDbContextFactory<BotDbContext> dbContextFactory, I
         alias = alias.Trim();
 
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
-        Alias? entity = await context.Aliases.FindAsync(alias);
+        Alias? entity = await context.Aliases.FirstOrDefaultAsync(a => a.AliasUserName == alias);
 
         if (entity == null)
         {

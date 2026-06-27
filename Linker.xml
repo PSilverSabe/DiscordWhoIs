@@ -1,16 +1,10 @@
 ﻿<linker>
 	<!-- Preserve your app's reflection roots -->
 	<assembly fullname="DiscordWhoIs">
-		<type fullname="DiscordWhoIs.Databases.Serializers.ConfigurationJsonContext" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.FileLocationConfiguration" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.FandomConfiguration" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.UploadConfiguration" preserve="all" />
 		<type fullname="DiscordWhoIs.Configuration.Models.DiscordConfiguration" preserve="all" />
-		<type fullname="DiscordWhoIs.Databases.DbModels.Alias" preserve="all" />
-		<type fullname="DiscordWhoIs.Databases.DbModels.Fanfic" preserve="all" />
-		<type fullname="DiscordWhoIs.Controllers.FicUpdateController" preserve="all" />
-		<type fullname="DiscordWhoIs.Databases.Repositories.AliasRepository" preserve="all" />
-		<type fullname="DiscordWhoIs.Databases.Repositories.FanficRepository" preserve="all" />
 	</assembly>
 
 	<!-- Exclude MVC trimming by preserving the whole ASP.NET Core MVC surface -->

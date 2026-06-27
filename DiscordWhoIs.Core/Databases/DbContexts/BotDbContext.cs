@@ -15,6 +15,8 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
 
     public DbSet<Author> Authors { get; set; } = null!;
 
+    public DbSet<EmbedPosterConfiguration> EmbedPosterConfiguration { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -15,7 +15,6 @@ public sealed class AuthorDescriptionModalHandler(
 {
     private readonly IAuthorRepository _author = author;
     private readonly ILogger<AuthorDescriptionModalHandler> _logger = logger;
-    private readonly List<string> _statusLines = [];
 
     public async Task HandleDescriptionAsyncViaModal(SocketModal modal)
     {
@@ -65,11 +64,10 @@ public sealed class AuthorDescriptionModalHandler(
         SocketGuildUser callingUser,
         SocketGuildUser? targetUser = null)
     {
-
+        var statusLines = new List<string> { };
         try
         {
             await interaction.DeferAsync(ephemeral: true);
-            var statusLines = new List<string> { };
             description = description.Trim();
 
             if (string.IsNullOrWhiteSpace(description))
@@ -98,27 +96,27 @@ public sealed class AuthorDescriptionModalHandler(
             // Admin overriding another user's registration
             if (isAdminOverride)
             {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, statusLines,
                     $"Warning: The AO3 description may already be set. As you have administrative privileges, you will override this description.",
                     _logger);
             }
             // Admin registering for themselves
             else if (AdminButSelfRegister)
             {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, statusLines,
                     $"Warning: You are registering a Description to your own Discord user. " +
                     "As you have administrative privileges, you will override this registration.", _logger);
             }
             // User registering for themselves
             else if (isSelfRegister)
             {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, statusLines,
                     $"Attempting to register a description to your Discord user.", _logger);
             }
             // Non-admin trying to register for another user
             else if (isUserTryingAdminOverride)
             {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, statusLines,
                     "**Only** Admins can use the **discord-user** parameter. " +
                     "You do not have permission to register AO3 authors for other Discord users. ", _logger);
                 return;
@@ -131,7 +129,7 @@ public sealed class AuthorDescriptionModalHandler(
 
             await _author.UpdateAuthorDescriptionAsync(callingUser.Id, description);
 
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, _statusLines,
+            await InteractionResponseHelper.UpdateOriginalResponseAsync(interaction, statusLines,
                 $"Successfully registered AO3 author description for **{callingUser.Username}**.", _logger);
         }
         catch (System.Exception ex)
@@ -141,7 +139,7 @@ public sealed class AuthorDescriptionModalHandler(
         }
         finally
         {
-            _statusLines.Clear();
+            statusLines.Clear();
         }
     }
 

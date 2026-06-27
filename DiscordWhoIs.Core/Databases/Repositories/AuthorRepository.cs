@@ -69,6 +69,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
         return await context.Authors
             .AsNoTracking()
             .Include(a => a.Fanfics)
+            .ThenInclude(f => f.Authors)
             .FirstOrDefaultAsync(a => a.AuthorId == id);
     }
 
@@ -81,6 +82,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
         return await context.Authors
             .AsNoTracking()
             .Include(a => a.Fanfics)
+            .ThenInclude(f => f.Authors)
             .FirstOrDefaultAsync(a => a.DiscordId == discordId);
     }
 

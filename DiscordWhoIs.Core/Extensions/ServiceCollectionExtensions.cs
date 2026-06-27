@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFanficRepository, FanficRepository>();
         services.AddSingleton<IAliasRepository, AliasRepository>();
         services.AddSingleton<IAuthorRepository, AuthorRepository>();
+        services.AddSingleton<IEmbedPosterConfigurationRepository, EmbedPosterConfigurationRepository>();
 
         // Config Bindings
         services.AddSingleton(fandomConfig);
