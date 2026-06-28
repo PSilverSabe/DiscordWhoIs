@@ -41,11 +41,13 @@ public sealed class FanficEmbedResponderService(
     {
         if (message.Author.IsBot)
         {
+            _logger.LogDebug("Ignoring message {MessageId} from bot {Author}.", message.Id, message.Author.Username);
             return;
         }
 
         if (message.Channel is not ITextChannel channel)
         {
+            _logger.LogDebug("Ignoring message {MessageId} in non-text channel {Channel}.", message.Id, message.Channel.Name);
             return;
         }
 
@@ -86,6 +88,8 @@ public sealed class FanficEmbedResponderService(
 
     private async Task TryPostEmbedForLinkAsync(ITextChannel channel, string link, TimeSpan deduplicationWindow)
     {
+        _logger.LogInformation($"Post embed for link: {link}");
+
         string normalisedLink = NormaliseAo3Link(link);
         string cacheKey = $"embed:{channel.Id}:{normalisedLink}";
 
