@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -24,111 +25,119 @@ public class RegisterAo3AuthorCommand(IAuthorRepository authorRepository,
         SocketGuildUser? user = null
     )
     {
-        await DeferAsync(ephemeral: true);
-        var statusLines = new List<string> { };
-        authorName = authorName.Trim();
-
-        if (string.IsNullOrWhiteSpace(authorName))
+        try
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines, "AO3 author name cannot be empty.", _logger);
-            return;
-        }
+            await DeferAsync(ephemeral: true);
+            var statusLines = new List<string> { };
+            authorName = authorName.Trim();
 
-        Author? existing = await _author.GetByAo3ProfileNameAsync(authorName);
+            if (string.IsNullOrWhiteSpace(authorName))
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines, "AO3 author name cannot be empty.", _logger);
+                return;
+            }
 
-        if (existing == null)
-        {
+            Author? existing = await _author.GetByAo3ProfileNameAsync(authorName);
+
+            if (existing == null)
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                    $"The AO3 author name **{authorName}** does not exist in the database. " +
+                    "Please ensure you have at least one fanfic registered in the database before claiming ownership.",
+                    _logger);
+                return;
+            }
+
+            if (Context.User is not SocketGuildUser guildUser)
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines, "This command must be used in a server (guild).", _logger);
+                return;
+            }
+
+            // Check if calling user is admin
+            bool isAdmin = guildUser.HasAdminPermissions();
+
+            // Determine registration type
+            bool isSelfRegister = user == null;
+
+            // Determine if an admin is overriding another user's registration
+            bool isAdminOverride = isAdmin && user != null;
+
+            // Determine if a non-admin is trying to register for another user
+            bool isUserTryingAdminOverride = !isAdmin && user != null;
+
+            // Determine if an admin is registering for themselves
+            bool AdminButSelfRegister = isAdmin && isSelfRegister;
+
+            // Prepare registration details
+            int authorId = existing.AuthorId;
+            ulong discordUserId = user?.Id ?? Context.User.Id;
+            string discordUserName = user?.Username ?? Context.User.Username;
+
+            // Handle different registration scenarios
+            // Non-admin trying to register for another user
+            if (isUserTryingAdminOverride)
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                    "**Only** Admins can use the **discord-user** parameter. " +
+                    "You do not have permission to register AO3 authors for other Discord users.",
+                    _logger);
+                return;
+            }
+            else
+            {
+                statusLines.Add($"Attempting to register AO3 author name **{authorName}** to your Discord user.");
+            }
+
+            // Check if Discord user is already registered
+            if (await _author.DiscordIdAlreadyExists(discordUserId))
+            {
+                // If Admin is trying to register for themselves without [user], treat as self-register
+                if (AdminButSelfRegister)
+                {
+                    await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                        $"The current Discord user **{discordUserName}** is already registered to another AO3 author. " +
+                        $"In order to override this registration, please use the 'Discord-User' parameter to register for another user.",
+                        _logger);
+                    return;
+                }
+
+                // Handle self-registration when already registered
+                if (!isAdminOverride && isSelfRegister)
+                {
+                    await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                        $"Your Discord user **{discordUserName}** is already registered to another AO3 author. " +
+                        "Please contact an administrator if you believe this is an error.",
+                        _logger);
+                    return;
+                }
+
+                // Handle admin override registration
+                if (isAdminOverride && !isSelfRegister)
+                {
+                    await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                        $"Warning: The Discord user **{discordUserName}** is already registered to another AO3 author. " +
+                        "As you have administrative privileges, you will override this registration.",
+                        _logger);
+
+                    await _author.UpdateDiscordUsernameAsync(authorId, discordUserName, discordUserId, true);
+                    return;
+                }
+            }
+
+            // Proceed with registration
+            await _author.UpdateDiscordUsernameAsync(authorId, discordUserName, discordUserId);
+
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-                $"The AO3 author name **{authorName}** does not exist in the database. " +
-                "Please ensure you have at least one fanfic registered in the database before claiming ownership.",
+                $"Successfully registered AO3 author name **{authorName}** to Discord user **{discordUserName}**.",
                 _logger);
+
             return;
         }
-
-        if (Context.User is not SocketGuildUser guildUser)
+        catch (Exception ex)
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines, "This command must be used in a server (guild).", _logger);
-            return;
+            _logger.LogError(ex, "Error occurred while registering AO3 author name.");
+            throw;
         }
-
-        // Check if calling user is admin
-        bool isAdmin = guildUser.HasAdminPermissions();
-
-        // Determine registration type
-        bool isSelfRegister = user == null;
-
-        // Determine if an admin is overriding another user's registration
-        bool isAdminOverride = isAdmin && user != null;
-
-        // Determine if a non-admin is trying to register for another user
-        bool isUserTryingAdminOverride = !isAdmin && user != null;
-
-        // Determine if an admin is registering for themselves
-        bool AdminButSelfRegister = isAdmin && isSelfRegister;
-
-        // Prepare registration details
-        int authorId = existing.AuthorId;
-        ulong discordUserId = user?.Id ?? Context.User.Id;
-        string discordUserName = user?.Username ?? Context.User.Username;
-
-        // Handle different registration scenarios
-        // Non-admin trying to register for another user
-        if (isUserTryingAdminOverride)
-        {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-                "**Only** Admins can use the **discord-user** parameter. " +
-                "You do not have permission to register AO3 authors for other Discord users.",
-                _logger);
-            return;
-        }
-        else
-        {
-            statusLines.Add($"Attempting to register AO3 author name **{authorName}** to your Discord user.");
-        }
-
-        // Check if Discord user is already registered
-        if (await _author.DiscordIdAlreadyExists(discordUserId))
-        {
-            // If Admin is trying to register for themselves without [user], treat as self-register
-            if (AdminButSelfRegister)
-            {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-                    $"The current Discord user **{discordUserName}** is already registered to another AO3 author. " +
-                    $"In order to override this registration, please use the 'Discord-User' parameter to register for another user.",
-                    _logger);
-                return;
-            }
-
-            // Handle self-registration when already registered
-            if (!isAdminOverride && isSelfRegister)
-            {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-                    $"Your Discord user **{discordUserName}** is already registered to another AO3 author. " +
-                    "Please contact an administrator if you believe this is an error.",
-                    _logger);
-                return;
-            }
-
-            // Handle admin override registration
-            if (isAdminOverride && !isSelfRegister)
-            {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-                    $"Warning: The Discord user **{discordUserName}** is already registered to another AO3 author. " +
-                    "As you have administrative privileges, you will override this registration.",
-                    _logger);
-
-                await _author.UpdateDiscordUsernameAsync(authorId, discordUserName, discordUserId, true);
-                return;
-            }
-        }
-
-        // Proceed with registration
-        await _author.UpdateDiscordUsernameAsync(authorId, discordUserName, discordUserId);
-
-        await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-            $"Successfully registered AO3 author name **{authorName}** to Discord user **{discordUserName}**.",
-            _logger);
-
-        return;
     }
 }

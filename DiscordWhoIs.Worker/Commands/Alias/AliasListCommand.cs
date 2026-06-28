@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,62 +16,70 @@ public partial class AliasCommand : InteractionModuleBase<SocketInteractionConte
     [SlashCommand("list", "List configured aliases")]
     public async Task ListAsync()
     {
-        var statusLines = new List<string>();
-        await DeferAsync(ephemeral: true);
-
-        if (Context.User is not SocketGuildUser guildUser)
+        try
         {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "This command must be used in a server (guild).",
-                _logger);
-            return;
-        }
+            var statusLines = new List<string>();
+            await DeferAsync(ephemeral: true);
 
-        if (!guildUser.HasAdminPermissions())
-        {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "You do not have permission to view aliases.",
-                _logger);
-            return;
-        }
-
-        var entries = (await _store.GetAllAsync())
-            .Select(e => $"{e.AliasUserName} -> {e.Author.Ao3ProfileName}")
-            .ToList();
-
-        if (entries.Count == 0)
-        {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "No aliases configured.",
-                _logger);
-            return;
-        }
-
-        var sb = new StringBuilder();
-        foreach (string line in entries)
-        {
-            if (sb.Length + line.Length + 1 > WorkerConstants.MessageMaxLength)
+            if (Context.User is not SocketGuildUser guildUser)
             {
-                await FollowupAsync($"```\n{sb}\n```", ephemeral: true);
-                sb.Clear();
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "This command must be used in a server (guild).",
+                    _logger);
+                return;
+            }
+
+            if (!guildUser.HasAdminPermissions())
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "You do not have permission to view aliases.",
+                    _logger);
+                return;
+            }
+
+            var entries = (await _store.GetAllAsync())
+                .Select(e => $"{e.AliasUserName} -> {e.Author.Ao3ProfileName}")
+                .ToList();
+
+            if (entries.Count == 0)
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "No aliases configured.",
+                    _logger);
+                return;
+            }
+
+            var sb = new StringBuilder();
+            foreach (string line in entries)
+            {
+                if (sb.Length + line.Length + 1 > WorkerConstants.MessageMaxLength)
+                {
+                    await FollowupAsync($"```\n{sb}\n```", ephemeral: true);
+                    sb.Clear();
+                }
+
+                if (sb.Length > 0)
+                {
+                    sb.AppendLine();
+                }
+
+                sb.Append(line);
             }
 
             if (sb.Length > 0)
             {
-                sb.AppendLine();
+                await FollowupAsync($"```\n{sb}\n```", ephemeral: true);
             }
 
-            sb.Append(line);
+            _logger.LogInformation("Aliases listed by {Actor}", guildUser.Username);
         }
-
-        if (sb.Length > 0)
+        catch (Exception ex)
         {
-            await FollowupAsync($"```\n{sb}\n```", ephemeral: true);
+            _logger.LogError(ex, "Exception occured inside /alias list command");
+            throw;
         }
-
-        _logger.LogInformation("Aliases listed by {Actor}", guildUser.Username);
     }
 }

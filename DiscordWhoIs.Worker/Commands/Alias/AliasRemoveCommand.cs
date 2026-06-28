@@ -15,59 +15,67 @@ public partial class AliasCommand : InteractionModuleBase<SocketInteractionConte
         [Summary("Alias", "Alias name to remove")]
         string alias)
     {
-        var statusLines = new List<string>();
-        await DeferAsync(ephemeral: true);
-
-        if (Context.User is not SocketGuildUser guildUser)
-        {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "This command must be used in a server (guild).",
-                _logger);
-            return;
-        }
-
-        if (!guildUser.HasAdminPermissions())
-        {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "You do not have permission to manage aliases.",
-                _logger);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(alias))
-        {
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "`alias` is required.",
-                _logger);
-            return;
-        }
-
         try
         {
-            bool removed = await _store.RemoveAsync(alias);
+            var statusLines = new List<string>();
+            await DeferAsync(ephemeral: true);
 
-            string message = removed
-                ? $"Removed alias `{alias}`."
-                : $"Alias `{alias}` not found.";
-
-            if (removed)
+            if (Context.User is not SocketGuildUser guildUser)
             {
-                _logger.LogInformation("Alias removed by {Actor}: {Alias}", guildUser.Username, alias);
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "This command must be used in a server (guild).",
+                    _logger);
+                return;
             }
 
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines, message, _logger);
+            if (!guildUser.HasAdminPermissions())
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "You do not have permission to manage aliases.",
+                    _logger);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(alias))
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "`alias` is required.",
+                    _logger);
+                return;
+            }
+
+            try
+            {
+                bool removed = await _store.RemoveAsync(alias);
+
+                string message = removed
+                    ? $"Removed alias `{alias}`."
+                    : $"Alias `{alias}` not found.";
+
+                if (removed)
+                {
+                    _logger.LogInformation("Alias removed by {Actor}: {Alias}", guildUser.Username, alias);
+                }
+
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines, message, _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove alias {Alias}", alias);
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(
+                    Context.Interaction, statusLines,
+                    "Failed to remove alias due to an internal error.",
+                    _logger);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove alias {Alias}", alias);
-            await InteractionResponseHelper.UpdateOriginalResponseAsync(
-                Context.Interaction, statusLines,
-                "Failed to remove alias due to an internal error.",
-                _logger);
+            _logger.LogError(ex, "Error occurred while executing /Alias Remove command");
+            throw;
         }
     }
 }
