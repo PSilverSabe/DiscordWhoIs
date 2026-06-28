@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;
 
-public partial class AliasCommand
+public partial class AliasCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("remove", "Remove an alias")]
     public async Task RemoveAsync(

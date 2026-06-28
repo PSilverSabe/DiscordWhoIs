@@ -6,7 +6,7 @@ using DiscordWhoIs.Worker.Commands.Helpers;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;
 
-public partial class AliasCommand
+public partial class AliasCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("add", "Add or update an alias")]
     public async Task AddAsync(

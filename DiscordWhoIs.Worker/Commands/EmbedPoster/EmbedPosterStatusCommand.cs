@@ -5,7 +5,7 @@ using DiscordWhoIs.Core.Databases.DbModels;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public partial class EmbedPosterCommand
+public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("status", "Show the current embed poster configuration")]
     public async Task StatusAsync()

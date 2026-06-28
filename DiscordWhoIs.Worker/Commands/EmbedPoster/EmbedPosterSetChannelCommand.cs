@@ -6,7 +6,7 @@ using DiscordWhoIs.Worker.Commands.Helpers;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public partial class EmbedPosterCommand
+public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("set-channel", "Set the channel the embed poster will respond in")]
     public async Task SetChannelAsync(

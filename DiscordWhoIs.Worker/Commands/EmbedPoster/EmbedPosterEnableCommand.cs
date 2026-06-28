@@ -5,7 +5,7 @@ using DiscordWhoIs.Worker.Commands.Helpers;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public partial class EmbedPosterCommand
+public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("enable", "Enable or disable the AO3 embed poster")]
     public async Task SetEnabledAsync(

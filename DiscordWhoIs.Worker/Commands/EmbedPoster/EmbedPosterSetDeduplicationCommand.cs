@@ -5,7 +5,7 @@ using DiscordWhoIs.Worker.Commands.Helpers;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public partial class EmbedPosterCommand
+public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("set-deduplication-window", "Set how long to suppress duplicate embeds for the same link")]
     public async Task SetDeduplicationWindowAsync(

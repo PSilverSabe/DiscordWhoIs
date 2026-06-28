@@ -7,12 +7,12 @@
     <type fullname="DiscordWhoIs.Worker.Commands.ActiveUsersCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.PurgeCommand" preserve="all" />
     <!-- Alias commands -->
-    <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasCommandGroup" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasAddCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasRemoveCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.Alias.AliasListCommand" preserve="all" />
     <!-- EmbedPoster commands -->
-    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterCommandGroup" preserve="all" />
+    <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterEnableCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterSetChannelCommand" preserve="all" />
     <type fullname="DiscordWhoIs.Worker.Commands.EmbedPoster.EmbedPosterSetDeduplicationCommand" preserve="all" />

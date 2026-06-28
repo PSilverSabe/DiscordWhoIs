@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;
 
-public partial class AliasCommand
+public partial class AliasCommand : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("list", "List configured aliases")]
     public async Task ListAsync()
