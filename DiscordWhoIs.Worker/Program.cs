@@ -89,7 +89,8 @@ try
                                | GatewayIntents.GuildMembers
             }));
 
-            services.AddSingleton(sp => new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
+            services.AddSingleton<InteractionService>(sp =>
+                new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
 
             // Add Memory Cache
             services.AddMemoryCache();
