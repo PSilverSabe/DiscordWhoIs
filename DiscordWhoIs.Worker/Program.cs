@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.IO;
 using System.Linq;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Extensions;
@@ -80,14 +81,15 @@ try
             services.AddDiscordWhoIsCore(hostContext.Configuration);
 
             // Discord.NET core services
-            services.AddSingleton<DiscordSocketClient>();
             services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConfig
             {
                 GatewayIntents = GatewayIntents.Guilds
-                       | GatewayIntents.GuildMessages
-                       | GatewayIntents.MessageContent
-                       | GatewayIntents.GuildMembers
+                               | GatewayIntents.GuildMessages
+                               | GatewayIntents.MessageContent
+                               | GatewayIntents.GuildMembers
             }));
+
+            services.AddSingleton(sp => new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
 
             // Add Memory Cache
             services.AddMemoryCache();
