@@ -4,21 +4,14 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
 using DiscordWhoIs.Worker.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;
 
-public class AliasListCommand(
-    IAliasRepository store,
-    ILogger<AliasListCommand> logger)
-    : AliasCommandGroup
+public partial class AliasCommand
 {
-    private readonly IAliasRepository _store = store;
-    private readonly ILogger<AliasListCommand> _logger = logger;
-
     [SlashCommand("list", "List configured aliases")]
     public async Task ListAsync()
     {

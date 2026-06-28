@@ -2,20 +2,12 @@
 using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
-using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
-using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public class EmbedPosterSetChannelCommand(
-    IEmbedPosterConfigurationRepository configRepository,
-    ILogger<EmbedPosterSetChannelCommand> logger)
-    : EmbedPosterCommandGroup
+public partial class EmbedPosterCommand
 {
-    private readonly IEmbedPosterConfigurationRepository _configRepository = configRepository;
-    private readonly ILogger<EmbedPosterSetChannelCommand> _logger = logger;
-
     [SlashCommand("set-channel", "Set the channel the embed poster will respond in")]
     public async Task SetChannelAsync(
         [Summary("Channel", "The text channel to post embeds in. Leave empty to respond in any channel.")]

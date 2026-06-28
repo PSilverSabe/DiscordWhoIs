@@ -2,19 +2,11 @@
 using Discord;
 using Discord.Interactions;
 using DiscordWhoIs.Core.Databases.DbModels;
-using DiscordWhoIs.Core.Databases.Interfaces;
-using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public class EmbedPosterStatusCommand(
-    IEmbedPosterConfigurationRepository configRepository,
-    ILogger<EmbedPosterStatusCommand> logger)
-    : EmbedPosterCommandGroup
+public partial class EmbedPosterCommand
 {
-    private readonly IEmbedPosterConfigurationRepository _configRepository = configRepository;
-    private readonly ILogger<EmbedPosterStatusCommand> _logger = logger;
-
     [SlashCommand("status", "Show the current embed poster configuration")]
     public async Task StatusAsync()
     {

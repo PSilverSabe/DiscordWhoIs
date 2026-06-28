@@ -1,20 +1,12 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Discord.Interactions;
-using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
-using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
-public class EmbedPosterEnableCommand(
-    IEmbedPosterConfigurationRepository configRepository,
-    ILogger<EmbedPosterEnableCommand> logger)
-    : EmbedPosterCommandGroup
+public partial class EmbedPosterCommand
 {
-    private readonly IEmbedPosterConfigurationRepository _configRepository = configRepository;
-    private readonly ILogger<EmbedPosterEnableCommand> _logger = logger;
-
     [SlashCommand("enable", "Enable or disable the AO3 embed poster")]
     public async Task SetEnabledAsync(
         [Summary("Enabled", "Whether the embed poster should be active")]

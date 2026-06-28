@@ -2,20 +2,12 @@
 using System.Threading.Tasks;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
-using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;
 
-public class AliasAddCommand(
-    IAliasRepository store,
-    ILogger<AliasAddCommand> logger)
-    : AliasCommandGroup
+public partial class AliasCommand
 {
-    private readonly IAliasRepository _store = store;
-    private readonly ILogger<AliasAddCommand> _logger = logger;
-
     [SlashCommand("add", "Add or update an alias")]
     public async Task AddAsync(
         [Summary("Alias", "Alias name")]

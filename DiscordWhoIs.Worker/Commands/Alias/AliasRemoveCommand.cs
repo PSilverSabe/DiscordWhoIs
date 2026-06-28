@@ -3,20 +3,13 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;
 
-public class AliasRemoveCommand(
-    IAliasRepository store,
-    ILogger<AliasRemoveCommand> logger)
-    : AliasCommandGroup
+public partial class AliasCommand
 {
-    private readonly IAliasRepository _store = store;
-    private readonly ILogger<AliasRemoveCommand> _logger = logger;
-
     [SlashCommand("remove", "Remove an alias")]
     public async Task RemoveAsync(
         [Summary("Alias", "Alias name to remove")]
