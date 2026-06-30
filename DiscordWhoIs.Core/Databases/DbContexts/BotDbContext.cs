@@ -24,12 +24,30 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
         base.OnModelCreating(modelBuilder);
 
         // Server configuration
+        modelBuilder.Entity<Server>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DiscordServerId)
+                .IsRequired();
+            entity.Property(e => e.CreatedDate)
+                .IsRequired();
+            entity.Property(e => e.UpdatedDate)
+                .IsRequired();
+            entity.HasIndex(e => e.DiscordServerId)
+                .IsUnique();
+        });
+
+        // EmbedPosterConfiguration configuration (new channel-specific model)
         modelBuilder.Entity<EmbedPosterConfiguration>(entity =>
         {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.ServerId)
-                .IsRequired(); // ServerId should not be null
+                .IsRequired();
+
+            entity.Property(e => e.ChannelId)
+                .IsRequired()
+                .HasConversion<long>();
 
             entity.Property(e => e.Enabled)
                 .HasDefaultValue(false);
@@ -37,14 +55,18 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
             entity.Property(e => e.DeduplicationWindowMinutes)
                 .HasDefaultValue(10);
 
+            entity.Property(e => e.CreatedDate)
+                .IsRequired();
+
+            entity.Property(e => e.UpdatedDate)
+                .IsRequired();
+
             entity.HasOne(e => e.Server)
                 .WithMany(s => s.EmbedPosterConfigurations)
                 .HasForeignKey(e => e.ServerId)
-                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Unique constraint: one server-level config per server (ChannelId = null)
-            // and one per channel per server
+            // Unique constraint: one configuration per channel per server
             entity.HasIndex(e => new { e.ServerId, e.ChannelId })
                 .IsUnique();
         });

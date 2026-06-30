@@ -9,16 +9,20 @@ public class EmbedPosterConfiguration
     public int Id { get; set; }
 
     [ForeignKey(nameof(ServerId))]
-    public ulong? ServerId { get; set; } = 0;
+    public int ServerId { get; set; }
+
+    public required ulong ChannelId { get; set; }
 
     public bool Enabled { get; set; } = false;
 
-    public ulong? ChannelId { get; set; } = null;
-
     /// <summary>
-    /// How long to suppress duplicate embeds for the same link in the same channel, in minutes.
+    /// How long to suppress duplicate embeds for the same link in this channel, in minutes.
     /// </summary>
     public int DeduplicationWindowMinutes { get; set; } = 10;
 
-    public virtual Server? Server { get; set; } = null;
+    public required DateTime CreatedDate { get; set; }
+
+    public required DateTime UpdatedDate { get; set; }
+
+    public virtual Server Server { get; set; } = null!;
 }

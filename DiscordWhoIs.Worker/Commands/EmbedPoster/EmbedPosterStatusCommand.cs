@@ -21,33 +21,33 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
 
             ulong serverId = GetServerId();
 
-            // Get all configurations for this server (server + all channels)
-            IEnumerable<EmbedPosterConfiguration> configurations = await _configRepository.GetAllByServerIdAsync(serverId);
-            var configList = configurations.ToList();
+            // Get server by Discord ID
+            Server server = await _serverRepository.GetOrCreateServerAsync(serverId);
 
-            if (!configList.Any())
+            if (server is null)
             {
                 await Context.Interaction.ModifyOriginalResponseAsync(msg =>
                 {
-                    msg.Content = "No embed poster configuration found for this server. Use `/embed-poster enable` to create one.";
+                    msg.Content = "No embed poster configuration found for this server. Use `/embed-poster enable` in a channel to create one.";
                 });
                 return;
             }
 
-            // Separate server and channel configurations
-            EmbedPosterConfiguration? serverConfig = configList.FirstOrDefault(c => c.ChannelId == null);
-            var channelConfigs = configList.Where(c => c.ChannelId.HasValue).ToList();
+            // Get all channel configurations for this server
+            var channelConfigs = (await _channelConfigRepository.GetByServerIdAsync(server.Id)).ToList();
 
-            // Build the main embed for server configuration
-            Embed serverEmbed = BuildServerConfigEmbed(serverConfig);
-
-            // If there are channel-specific configurations, create additional embeds
-            var embeds = new List<Embed> { serverEmbed };
-
-            if (channelConfigs.Any())
+            if (!channelConfigs.Any())
             {
-                embeds.AddRange(BuildChannelConfigEmbeds(channelConfigs));
+                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Content = "No embed poster configuration found for this server. Use `/embed-poster enable` in a channel to create one.";
+                });
+                return;
             }
+
+            // Build embeds for channel configurations
+            var embeds = new List<Embed>();
+            embeds.AddRange(BuildChannelConfigEmbeds(channelConfigs));
 
             // Send the embeds (Discord limits to 10 embeds per message)
             await SendEmbeds(embeds);
@@ -60,46 +60,17 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
     }
 
     /// <summary>
-    /// Builds an embed displaying the server-level configuration.
-    /// </summary>
-    private Embed BuildServerConfigEmbed(EmbedPosterConfiguration? serverConfig)
-    {
-        if (serverConfig is null)
-        {
-            return new EmbedBuilder()
-                .WithTitle("🖥️ Server Configuration")
-                .WithColor(Color.LightGrey)
-                .WithDescription("No server-level configuration found.")
-                .Build();
-        }
-
-        string channelDisplay = serverConfig.ChannelId.HasValue
-            ? $"<#{serverConfig.ChannelId}>"
-            : "Any channel (default)";
-
-        return new EmbedBuilder()
-            .WithTitle("🖥️ Server Configuration")
-            .WithColor(serverConfig.Enabled ? Color.Green : Color.Red)
-            .AddField("Status", serverConfig.Enabled ? "✅ Enabled" : "⛔ Disabled", inline: true)
-            .AddField("Default Channel", channelDisplay, inline: true)
-            .AddField("Deduplication Window", $"{serverConfig.DeduplicationWindowMinutes} minute(s)", inline: false)
-            .Build();
-    }
-
-    /// <summary>
     /// Builds embeds for each channel-specific configuration.
     /// </summary>
     private IEnumerable<Embed> BuildChannelConfigEmbeds(IEnumerable<EmbedPosterConfiguration> channelConfigs)
     {
         var embeds = new List<Embed>();
-
-        // Group configs if there are many channels
         var configs = channelConfigs.ToList();
 
         if (configs.Count <= 5)
         {
             // Show each channel in its own embed
-            foreach (EmbedPosterConfiguration? config in configs)
+            foreach (EmbedPosterConfiguration config in configs)
             {
                 embeds.Add(BuildChannelConfigEmbed(config));
             }
@@ -118,10 +89,10 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
     /// </summary>
     private Embed BuildChannelConfigEmbed(EmbedPosterConfiguration config)
     {
-        string channelMention = config.ChannelId.HasValue ? $"<#{config.ChannelId}>" : "Unknown";
+        string channelMention = $"<#{config.ChannelId}>";
 
         return new EmbedBuilder()
-            .WithTitle($"#️⃣ Channel Override: {channelMention}")
+            .WithTitle($"#️⃣ Channel: {channelMention}")
             .WithColor(config.Enabled ? Color.Green : Color.Red)
             .AddField("Status", config.Enabled ? "✅ Enabled" : "⛔ Disabled", inline: true)
             .AddField("Deduplication Window", $"{config.DeduplicationWindowMinutes} minute(s)", inline: true)
@@ -134,15 +105,15 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
     private Embed BuildCombinedChannelConfigEmbed(IEnumerable<EmbedPosterConfiguration> channelConfigs)
     {
         EmbedBuilder embedBuilder = new EmbedBuilder()
-            .WithTitle("#️⃣ Channel Overrides")
+            .WithTitle("#️⃣ Channel Configurations")
             .WithColor(Color.Blue);
 
         var enabledChannels = new StringBuilder();
         var disabledChannels = new StringBuilder();
 
-        foreach (EmbedPosterConfiguration? config in channelConfigs.OrderBy(c => c.ChannelId))
+        foreach (EmbedPosterConfiguration config in channelConfigs.OrderBy(c => c.ChannelId))
         {
-            string channelMention = config.ChannelId.HasValue ? $"<#{config.ChannelId}>" : "Unknown";
+            string channelMention = $"<#{config.ChannelId}>";
             string dedup = $" (Dedup: {config.DeduplicationWindowMinutes}m)";
 
             if (config.Enabled)
@@ -157,12 +128,12 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
 
         if (enabledChannels.Length > 0)
         {
-            embedBuilder.AddField("Enabled Overrides", enabledChannels.ToString().Trim(), inline: false);
+            embedBuilder.AddField("Enabled Channels", enabledChannels.ToString().Trim(), inline: false);
         }
 
         if (disabledChannels.Length > 0)
         {
-            embedBuilder.AddField("Disabled Overrides", disabledChannels.ToString().Trim(), inline: false);
+            embedBuilder.AddField("Disabled Channels", disabledChannels.ToString().Trim(), inline: false);
         }
 
         return embedBuilder.Build();

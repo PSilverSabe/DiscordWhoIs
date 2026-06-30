@@ -5,9 +5,9 @@ namespace DiscordWhoIs.Core.Databases.DbModels;
 public class Server
 {
     [Key]
-    public int ServerId { get; set; }
+    public int Id { get; set; }
 
-    public required string ServerName { get; set; } = null!;
+    public ulong DiscordServerId { get; set; }
 
     public required DateTime CreatedDate { get; set; }
 

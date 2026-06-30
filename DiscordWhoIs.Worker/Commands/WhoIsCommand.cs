@@ -42,13 +42,6 @@ public class WhoIsCommandModule(
             var statusLines = new List<string> { };
             await DeferAsync(ephemeral: true);
 
-            if (string.IsNullOrWhiteSpace(requested) && user == null)
-            {
-                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
-                    "Please provide either an Ao3 Name, Ao3 Alias, or a Discord User in order to get Author Information.", _logger);
-                return;
-            }
-
             await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
                 $"Resolving alias and checking database for user...", _logger);
 

@@ -10,11 +10,13 @@ namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 [Group("embed-poster", "Configure the AO3 embed poster")]
 [DefaultMemberPermissions(GuildPermission.Administrator)]
 public partial class EmbedPosterCommand(
-    IEmbedPosterConfigurationRepository configRepository,
+    IEmbedPosterConfigurationRepository channelConfigRepository,
+    IServerRepository serverRepository,
     ILogger<EmbedPosterCommand> logger,
     FanficEmbedResponderService fanficEmbedResponderService) : InteractionModuleBase<SocketInteractionContext>
 {
-    private readonly IEmbedPosterConfigurationRepository _configRepository = configRepository;
+    private readonly IEmbedPosterConfigurationRepository _channelConfigRepository = channelConfigRepository;
+    private readonly IServerRepository _serverRepository = serverRepository;
     private readonly ILogger<EmbedPosterCommand> _logger = logger;
     private readonly FanficEmbedResponderService _fanficEmbedResponderService = fanficEmbedResponderService;
 

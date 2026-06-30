@@ -15,16 +15,18 @@ namespace DiscordWhoIs.Worker.Services;
 
 /// <summary>
 /// Service responsible for detecting AO3 links in Discord messages and posting embeds
-/// with per-server and per-channel configuration support.
+/// with per-channel configuration support.
 /// </summary>
 public sealed class FanficEmbedResponderService(
     IFanficRepository fanficRepository,
-    IEmbedPosterConfigurationRepository configRepository,
+    IEmbedPosterConfigurationRepository channelConfigRepository,
+    IServerRepository serverRepository,
     IMemoryCache cache,
     ILogger<FanficEmbedResponderService> logger)
 {
     private readonly IFanficRepository _fanficRepository = fanficRepository;
-    private readonly IEmbedPosterConfigurationRepository _configRepository = configRepository;
+    private readonly IEmbedPosterConfigurationRepository _channelConfigRepository = channelConfigRepository;
+    private readonly IServerRepository _serverRepository = serverRepository;
     private readonly IMemoryCache _cache = cache;
     private readonly ILogger<FanficEmbedResponderService> _logger = logger;
     private static readonly TimeSpan s_configCacheDuration = TimeSpan.FromMinutes(5);
@@ -63,20 +65,20 @@ public sealed class FanficEmbedResponderService(
                 return;
             }
 
-            // Get configuration for this server and channel
+            // Get configuration for this channel
             EmbedPosterConfiguration? config = await GetConfigForChannelAsync(
                 guild.Id, channel.Id, cancellationToken);
 
             if (config is null || !config.Enabled)
             {
                 _logger.LogDebug(
-                    "EmbedPoster is disabled for server {ServerId} in #{Channel} — ignoring AO3 links in message {MessageId}.",
+                    "EmbedPoster is disabled for server {DiscordServerId} in #{Channel} — ignoring AO3 links in message {MessageId}.",
                     guild.Id, channel.Name, message.Id);
                 return;
             }
 
             _logger.LogInformation(
-                "Detected {Count} AO3 link(s) in message {MessageId} from {Author} in server {ServerId} #{Channel}",
+                "Detected {Count} AO3 link(s) in message {MessageId} from {Author} in server {DiscordServerId} #{Channel}",
                 links.Count, message.Id, message.Author.Username, guild.Id, channel.Name);
 
             TimeSpan deduplicationWindow = TimeSpan.FromMinutes(config.DeduplicationWindowMinutes);
@@ -94,7 +96,7 @@ public sealed class FanficEmbedResponderService(
     }
 
     /// <summary>
-    /// Gets the configuration for a specific server and channel, with fallback to server-level config.
+    /// Gets the configuration for a specific server and channel.
     /// </summary>
     private async Task<EmbedPosterConfiguration?> GetConfigForChannelAsync(
         ulong serverId,
@@ -110,9 +112,18 @@ public sealed class FanficEmbedResponderService(
 
         try
         {
-            // Fetch configuration (will fall back to server config if channel-specific doesn't exist)
-            EmbedPosterConfiguration? config = await _configRepository.GetByServerAndChannelAsync(
-                serverId, channelId, cancellationToken);
+            // Get server by Discord ID
+            Server? server = await _serverRepository.GetByIdAsync(serverId, cancellationToken);
+            if (server is null)
+            {
+                _logger.LogDebug("Server {DiscordServerId} not found in database", serverId);
+                _cache.Set<EmbedPosterConfiguration?>(cacheKey, null, s_invalidConfigCacheDuration);
+                return null;
+            }
+
+            // Fetch channel configuration
+            EmbedPosterConfiguration? config = await _channelConfigRepository.GetByServerAndChannelAsync(
+                server.Id, channelId);
 
             if (config is not null)
             {
@@ -130,7 +141,7 @@ public sealed class FanficEmbedResponderService(
         {
             _logger.LogError(
                 ex,
-                "Error retrieving embed poster configuration for server {ServerId} channel {ChannelId}",
+                "Error retrieving embed poster configuration for server {DiscordServerId} channel {ChannelId}",
                 serverId, channelId);
             return null;
         }
@@ -139,14 +150,7 @@ public sealed class FanficEmbedResponderService(
     /// <summary>
     /// Invalidates the cache for a specific server's configuration.
     /// </summary>
-    public void InvalidateServerConfigCache(ulong serverId)
-    {
-        var keysToRemove = new List<string>();
-
-        // This is a simplified approach. In a production app, you'd want a more efficient
-        // cache invalidation strategy (e.g., tag-based invalidation or event-driven)
-        _logger.LogDebug("Invalidating configuration cache for server {ServerId}", serverId);
-    }
+    public void InvalidateServerConfigCache(ulong serverId) => _logger.LogDebug("Invalidating configuration cache for server {ServerId}", serverId);// In a real implementation, you'd need to clear cache entries// For now, this is acceptable since the cache has a 5-minute TTL anyway
 
     /// <summary>
     /// Attempts to post an embed for the given AO3 link.
@@ -166,7 +170,7 @@ public sealed class FanficEmbedResponderService(
             if (_cache.TryGetValue(cacheKey, out _))
             {
                 _logger.LogDebug(
-                    "Skipping duplicate embed for {Link} in server {ServerId} #{Channel} — within deduplication window.",
+                    "Skipping duplicate embed for {Link} in server {DiscordServerId} #{Channel} — within deduplication window.",
                     normalisedLink, channel.GuildId, channel.Name);
                 return;
             }
@@ -184,7 +188,7 @@ public sealed class FanficEmbedResponderService(
             }
 
             _logger.LogInformation(
-                "Posting embed for fic '{Title}' ({Link}) in server {ServerId} #{Channel}",
+                "Posting embed for fic '{Title}' ({Link}) in server {DiscordServerId} #{Channel}",
                 fic.Title, normalisedLink, channel.GuildId, channel.Name);
 
             // Post the embed

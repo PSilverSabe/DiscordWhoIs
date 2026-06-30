@@ -54,10 +54,17 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUse
                 return;
             }
 
+            if (Context.Guild == null)
+            {
+                await InteractionResponseHelper.UpdateOriginalResponseAsync(Context.Interaction, statusLines,
+                    "Guild context is unavailable.", _logger);
+                return;
+            }
+
             var mentions = new List<string>();
             foreach (ulong id in activeUsers)
             {
-                IGuildUser user = await channel.Guild.GetUserAsync(id); // async fetch
+                IGuildUser? user = await Context.Guild.GetUserAsync(id);
                 mentions.Add(user?.Mention ?? $"<@{id}>");
             }
 

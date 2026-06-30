@@ -2,27 +2,40 @@
 
 namespace DiscordWhoIs.Core.Databases.Interfaces;
 
-public interface IEmbedPosterConfigurationRepository : IRepository<EmbedPosterConfiguration>
+public interface IEmbedPosterConfigurationRepository
 {
-    Task<EmbedPosterConfiguration?> GetByServerIdAsync(ulong serverId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Gets all channel configurations for a specific server.
+    /// </summary>
+    Task<IReadOnlyList<EmbedPosterConfiguration>> GetByServerIdAsync(int serverId);
 
-    Task<EmbedPosterConfiguration?> GetByServerAndChannelAsync(ulong serverId, ulong channelId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Gets a specific channel configuration for a server.
+    /// </summary>
+    Task<EmbedPosterConfiguration?> GetByServerAndChannelAsync(int serverId, ulong channelId);
 
-    Task<IEnumerable<EmbedPosterConfiguration>> GetAllByServerIdAsync(ulong serverId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Gets all enabled channels for a specific server.
+    /// </summary>
+    Task<IReadOnlyList<EmbedPosterConfiguration>> GetEnabledChannelsByServerIdAsync(int serverId);
 
-    Task<EmbedPosterConfiguration> GetOrCreateServerConfigAsync(ulong serverId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Creates or updates a channel configuration for a server.
+    /// </summary>
+    Task<bool> UpsertChannelConfigurationAsync(int serverId, ulong channelId, bool enabled, int deduplicationWindowMinutes = 10);
 
-    Task<EmbedPosterConfiguration> GetOrCreateChannelConfigAsync(ulong serverId, ulong channelId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Deletes a channel configuration for a server.
+    /// </summary>
+    Task<bool> DeleteChannelConfigurationAsync(int serverId, ulong channelId);
 
-    Task UpdateServerEnabledAsync(ulong serverId, bool enabled, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Checks if a channel is enabled for embed posting in a server.
+    /// </summary>
+    Task<bool> IsChannelEnabledAsync(int serverId, ulong channelId);
 
-    Task UpdateServerChannelAsync(ulong serverId, ulong? channelId, CancellationToken cancellationToken = default);
-
-    Task UpdateDeduplicationWindowAsync(ulong serverId, int minutes, CancellationToken cancellationToken = default);
-
-    Task UpdateChannelEnabledAsync(ulong serverId, ulong channelId, bool enabled, CancellationToken cancellationToken = default);
-
-    Task<bool> DeleteChannelConfigAsync(ulong serverId, ulong channelId, CancellationToken cancellationToken = default);
-
-    Task<bool> IsEnabledAsync(ulong serverId, ulong? channelId = null, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Gets all channel configurations across all servers.
+    /// </summary>
+    Task<IReadOnlyList<EmbedPosterConfiguration>> GetAllAsync();
 }
