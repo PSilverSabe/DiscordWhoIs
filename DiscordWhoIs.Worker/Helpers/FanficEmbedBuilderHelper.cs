@@ -4,9 +4,9 @@ using Discord;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Worker.Constants;
 
-namespace DiscordWhoIs.Worker.Commands.Helpers;
+namespace DiscordWhoIs.Worker.Helpers;
 
-public static class FanficEmbedBuilder
+public static class FanficEmbedBuilderHelper
 {
     public static Embed Build(Fanfic fic)
     {

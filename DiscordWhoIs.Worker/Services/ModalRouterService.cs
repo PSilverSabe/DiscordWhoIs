@@ -5,7 +5,7 @@ using Discord.WebSocket;
 
 namespace DiscordWhoIs.Worker.Services;
 
-public sealed class ModalRouter
+public sealed class ModalRouterService
 {
     private readonly Dictionary<string, Func<SocketModal, Task>> _handlers = new();
 

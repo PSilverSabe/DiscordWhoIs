@@ -146,7 +146,7 @@ public class WhoIsCommandModule(
 
                 // Use the shared chunker helper
                 int maxRecentFieldsAllowed = Math.Max(1, WorkerConstants.EmbedMaxFields - preAddedFields);
-                List<List<string>> entryChunks = EmbedChunker.ChunkEntries(recentEntries, WorkerConstants.EmbedFieldMaxLength, maxRecentFieldsAllowed);
+                List<List<string>> entryChunks = EmbedChunkerHelper.ChunkEntries(recentEntries, WorkerConstants.EmbedFieldMaxLength, maxRecentFieldsAllowed);
 
                 // Add chunked recent works fields. Each field title indicates Top N and item count for that field.
                 for (int i = 0; i < entryChunks.Count; i++)

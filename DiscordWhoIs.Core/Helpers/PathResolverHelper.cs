@@ -1,6 +1,6 @@
-﻿namespace DiscordWhoIs.Core.Utilities;
+﻿namespace DiscordWhoIs.Core.Helpers;
 
-public static class PathResolver
+public static class PathResolverHelper
 {
     public static bool IsDevelopment()
     {

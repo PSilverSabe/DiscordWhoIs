@@ -5,9 +5,10 @@ using Discord;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Worker.Commands.Helpers;
+using DiscordWhoIs.Worker.Extensions;
 using Microsoft.Extensions.Logging;
 
-namespace DiscordWhoIs.Worker.Commands.Modals.Handlers;
+namespace DiscordWhoIs.Worker.Modals.Handlers;
 
 public sealed class AuthorDescriptionModalHandler(
     IAuthorRepository author,

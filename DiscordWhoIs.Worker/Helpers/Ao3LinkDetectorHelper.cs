@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace DiscordWhoIs.Worker.Utilities;
 
-public static partial class Ao3LinkDetector
+public static partial class Ao3LinkDetectorHelper
 {
     // Matches AO3 work URLs, capturing the numeric work ID
     // e.g. https://archiveofourown.org/works/12345678

@@ -9,8 +9,8 @@ using Discord.Rest;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Core.Databases.Interfaces;
-using DiscordWhoIs.Worker.Commands.Modals.Handlers;
 using DiscordWhoIs.Worker.Commands.Registry;
+using DiscordWhoIs.Worker.Modals.Handlers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,7 +27,7 @@ public class BotService
     private readonly ActiveUsersCacheService _cache;
     private readonly IAuthorRepository _authorRepository;
     private readonly FanficEmbedResponderService _embedResponder;
-    private readonly ModalRouter _modalRouter;
+    private readonly ModalRouterService _modalRouter;
 
     public BotService(
         DiscordSocketClient client,
@@ -39,7 +39,7 @@ public class BotService
         ActiveUsersCacheService cache,
         IAuthorRepository authorRepository,
         FanficEmbedResponderService embedResponder,
-        ModalRouter modalRouter
+        ModalRouterService modalRouter
         )
     {
         _client = client;

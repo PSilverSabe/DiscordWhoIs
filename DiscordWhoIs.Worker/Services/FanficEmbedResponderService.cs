@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
-using DiscordWhoIs.Worker.Commands.Helpers;
+using DiscordWhoIs.Worker.Extensions;
+using DiscordWhoIs.Worker.Helpers;
 using DiscordWhoIs.Worker.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -59,7 +61,7 @@ public sealed class FanficEmbedResponderService(
             }
 
             // Extract AO3 links from message
-            IReadOnlyList<string> links = Ao3LinkDetector.ExtractLinks(message.Content);
+            IReadOnlyList<string> links = Ao3LinkDetectorHelper.ExtractLinks(message.Content);
             if (links.Count == 0)
             {
                 return;
@@ -150,7 +152,34 @@ public sealed class FanficEmbedResponderService(
     /// <summary>
     /// Invalidates the cache for a specific server's configuration.
     /// </summary>
-    public void InvalidateServerConfigCache(ulong serverId) => _logger.LogDebug("Invalidating configuration cache for server {ServerId}", serverId);// In a real implementation, you'd need to clear cache entries// For now, this is acceptable since the cache has a 5-minute TTL anyway
+    public void InvalidateServerConfigCache(ulong serverId)
+    {
+        try
+        {
+            string cacheKeyPattern = $"embedposter:config:{serverId}:";
+
+            var keysToRemove = _cache.GetCacheKeys()
+                .Where(k => k.StartsWith(cacheKeyPattern))
+                .ToList();
+
+            foreach (string? key in keysToRemove)
+            {
+                _cache.Remove(key);
+                _logger.LogDebug("Invalidated cache for key {CacheKey}", key);
+            }
+
+            if (keysToRemove.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Invalidated {Count} cache entries for server {DiscordServerId}",
+                    keysToRemove.Count, serverId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error invalidating server config cache for server {DiscordServerId}", serverId);
+        }
+    }
 
     /// <summary>
     /// Attempts to post an embed for the given AO3 link.
@@ -192,7 +221,7 @@ public sealed class FanficEmbedResponderService(
                 fic.Title, normalisedLink, channel.GuildId, channel.Name);
 
             // Post the embed
-            Embed embed = FanficEmbedBuilder.Build(fic);
+            Embed embed = FanficEmbedBuilderHelper.Build(fic);
             await channel.SendMessageAsync(embed: embed);
         }
         catch (Exception ex)

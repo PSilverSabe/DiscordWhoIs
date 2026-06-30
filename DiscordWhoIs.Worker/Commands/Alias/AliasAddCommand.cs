@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordWhoIs.Worker.Commands.Helpers;
+using DiscordWhoIs.Worker.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace DiscordWhoIs.Worker.Commands.Alias;

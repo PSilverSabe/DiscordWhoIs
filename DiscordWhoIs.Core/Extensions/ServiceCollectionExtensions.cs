@@ -3,7 +3,7 @@ using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Core.Databases.Repositories;
-using DiscordWhoIs.Core.Utilities;
+using DiscordWhoIs.Core.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,11 +21,11 @@ public static class ServiceCollectionExtensions
         UploadConfiguration uploadConfig = configuration.BindValidated<UploadConfiguration>("Upload");
 
         // Resolve file locations using unified logic
-        string botDbPath = PathResolver.ResolvePath(
+        string botDbPath = PathResolverHelper.ResolvePath(
             botDbContextConfig.TargetDirectory,
             botDbContextConfig.FileName ?? "botdbcontext.sqlite");
 
-        string uploadFilePath = PathResolver.ResolvePath(
+        string uploadFilePath = PathResolverHelper.ResolvePath(
             uploadConfig.TargetDirectory,
             uploadConfig.FileName ?? "fanfic_updates.json");
 

@@ -13,7 +13,7 @@ namespace DiscordWhoIs.Worker.Commands.Helpers;
 /// <param name="entries">List of per-item strings to chunk into embed fields.</param>
 /// <param name="maxFieldLength">Maximum length of each embed field.</param>
 /// <param name="maxFieldsAllowed">Maximum number of embed fields allowed.</param>
-public static class EmbedChunker
+public static class EmbedChunkerHelper
 {
     public static List<List<string>> ChunkEntries(
         List<string> entries,

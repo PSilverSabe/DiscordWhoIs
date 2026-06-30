@@ -1,6 +1,6 @@
 ﻿using Discord.WebSocket;
 
-namespace DiscordWhoIs.Worker.Commands.Helpers;
+namespace DiscordWhoIs.Worker.Extensions;
 
 public static class SocketGuildUserExtensions
 {

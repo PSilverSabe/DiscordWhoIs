@@ -9,8 +9,8 @@ using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbContexts;
 using DiscordWhoIs.Core.Extensions;
 using DiscordWhoIs.Worker;
-using DiscordWhoIs.Worker.Commands.Modals.Handlers;
 using DiscordWhoIs.Worker.Commands.Registry;
+using DiscordWhoIs.Worker.Modals.Handlers;
 using DiscordWhoIs.Worker.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -92,7 +92,7 @@ try
             // Interaction service for handling slash commands and modals
             services.AddSingleton<InteractionService>(sp =>
                 new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
-            services.AddSingleton<ModalRouter>();
+            services.AddSingleton<ModalRouterService>();
 
             // Add Memory Cache
             services.AddMemoryCache();

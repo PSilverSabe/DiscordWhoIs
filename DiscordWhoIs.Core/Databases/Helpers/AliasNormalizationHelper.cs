@@ -12,7 +12,7 @@ namespace DiscordWhoIs.Core.Databases.Helpers;
 /// <remarks>This class is intended for use with database migration or data cleanup scenarios where author names
 /// may include aliases in a canonical form (e.g., "Alias (Canonical)"). All members are static and
 /// thread-safe.</remarks>
-public static partial class AliasNormalization
+public static partial class AliasNormalizationHelper
 {
     private static readonly Regex s_aliasedAuthorRegex =
         AliasedAuthorFixer();

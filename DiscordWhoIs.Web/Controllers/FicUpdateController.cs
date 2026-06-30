@@ -1,7 +1,7 @@
 ﻿using DiscordWhoIs.Core.Configuration.Models;
 using DiscordWhoIs.Core.Databases.Interfaces;
 using DiscordWhoIs.Core.Filters;
-using DiscordWhoIs.Core.Utilities;
+using DiscordWhoIs.Core.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Files = System.IO.File;
 
@@ -21,7 +21,7 @@ public class FicUpdateController(
     private readonly IHostEnvironment _env = env;
     private readonly ILogger<FicUpdateController> _logger = logger;
 
-    private string GetResolvedUploadFilePath() => PathResolver.ResolvePath(
+    private string GetResolvedUploadFilePath() => PathResolverHelper.ResolvePath(
             _uploadConfig.TargetDirectory,
             _uploadConfig.FileName ?? "fanfic_updates.json"
         );
