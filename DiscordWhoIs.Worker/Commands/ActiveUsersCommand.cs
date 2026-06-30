@@ -64,7 +64,7 @@ public class ActiveUsersCommand(ActiveUsersCacheService cache, ILogger<ActiveUse
             var mentions = new List<string>();
             foreach (ulong id in activeUsers)
             {
-                IGuildUser? user = await Context.Guild.GetUserAsync(id);
+                IGuildUser user = await channel.Guild.GetUserAsync(id);
                 mentions.Add(user?.Mention ?? $"<@{id}>");
             }
 
