@@ -25,8 +25,6 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
     // Regex used to parse "alias (canonical)" author strings from AO3 exports.
     private static readonly Regex s_ao3AuthorRegex = Ao3CanonicalAuthorRegex();
 
-    // Simple query helpers -------------------------------------------------
-
     public async Task<IReadOnlyList<Fanfic>> GetAllAsync()
     {
         await using BotDbContext context = _dbContextFactory.CreateDbContext();
@@ -80,8 +78,6 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
             .FirstOrDefaultAsync(f => f.Link == link);
     }
 
-    // High level import entry point ----------------------------------------
-
     public async Task<bool> ImportFromJsonAsync(string jsonFileName)
     {
         // Parse the JSON file into DTOs first.
@@ -114,8 +110,6 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
         }
     }
 
-    // JSON loading/parsing --------------------------------------------------
-
     private async Task<List<FanficJsonImport>> LoadJsonAsync(string jsonFileName)
     {
         if (!File.Exists(jsonFileName))
@@ -145,8 +139,6 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
             throw;
         }
     }
-
-    // Author import and alias resolution -----------------------------------
 
     private async Task<Dictionary<string, Author>> ImportAuthorsAsync(BotDbContext context, List<FanficJsonImport> parsedContent)
     {
@@ -317,8 +309,6 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
                 canonicalAuthor.Ao3ProfileName);
         }
     }
-
-    // Fanfic import --------------------------------------------------------
 
     private async Task ImportFanficsAsync(
         BotDbContext context,

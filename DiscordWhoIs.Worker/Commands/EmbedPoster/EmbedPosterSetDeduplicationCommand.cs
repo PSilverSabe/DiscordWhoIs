@@ -19,6 +19,8 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
             var statusLines = new List<string>();
             await DeferAsync(ephemeral: true);
 
+            ulong serverId = GetServerId();
+
             if (minutes < 1 || minutes > 1440)
             {
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(
@@ -28,7 +30,8 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
                 return;
             }
 
-            await _configRepository.SetDeduplicationWindowAsync(minutes);
+            await _configRepository.UpdateDeduplicationWindowAsync(serverId, minutes);
+            _fanficEmbedResponderService.InvalidateServerConfigCache(serverId);
 
             await InteractionResponseHelper.UpdateOriginalResponseAsync(
                 Context.Interaction, statusLines,

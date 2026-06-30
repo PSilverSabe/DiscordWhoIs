@@ -39,10 +39,11 @@ public static class ServiceCollectionExtensions
         });
 
         // Repositories with DB interaction
-        services.AddSingleton<IFanficRepository, FanficRepository>();
-        services.AddSingleton<IAliasRepository, AliasRepository>();
-        services.AddSingleton<IAuthorRepository, AuthorRepository>();
-        services.AddSingleton<IEmbedPosterConfigurationRepository, EmbedPosterConfigurationRepository>();
+        services.AddScoped<IFanficRepository, FanficRepository>();
+        services.AddScoped<IAliasRepository, AliasRepository>();
+        services.AddScoped<IAuthorRepository, AuthorRepository>();
+        services.AddScoped<IEmbedPosterConfigurationRepository, EmbedPosterConfigurationRepository>();
+        services.AddScoped<IServerRepository, ServerRepository>();
 
         // Config Bindings
         services.AddSingleton(fandomConfig);

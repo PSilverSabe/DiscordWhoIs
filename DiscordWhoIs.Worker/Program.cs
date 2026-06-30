@@ -89,19 +89,21 @@ try
                                | GatewayIntents.GuildMembers
             }));
 
+            // Interaction service for handling slash commands and modals
             services.AddSingleton<InteractionService>(sp =>
                 new InteractionService(sp.GetRequiredService<DiscordSocketClient>()));
+            services.AddSingleton<ModalRouter>();
 
             // Add Memory Cache
             services.AddMemoryCache();
 
             // Command registry and bot service
-            services.AddSingleton<AuthorDescriptionModalHandler>();
-            services.AddSingleton<CommandRegistry>();
-            services.AddSingleton<ActiveUsersCacheService>();
-            services.AddSingleton<BotService>();
-            services.AddSingleton<FanficEmbedResponderService>();
-            services.AddSingleton<ModalRouter>();
+            services.AddScoped<AuthorDescriptionModalHandler>();
+            services.AddScoped<CommandRegistry>();
+            services.AddScoped<ActiveUsersCacheService>();
+            services.AddScoped<BotService>();
+            services.AddScoped<FanficEmbedResponderService>();
+
 
             // Background worker wrapper that runs the bot
             services.AddHostedService<Worker>();

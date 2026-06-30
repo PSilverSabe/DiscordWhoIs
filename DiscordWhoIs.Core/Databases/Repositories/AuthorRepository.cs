@@ -9,13 +9,12 @@ namespace DiscordWhoIs.Core.Databases.Repositories;
 public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, ILogger<AuthorRepository> logger)
     : RepositoryBase<BotDbContext, AuthorRepository>(dbContextFactory, logger), IAuthorRepository
 {
-    private readonly ILogger<AuthorRepository> _log = logger;
     public async Task<IReadOnlyList<Author>> GetAllAsync()
     {
         await using BotDbContext context =
             await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogDebug("Fetching all authors with fanfics from database.");
+        _logger.LogDebug("Fetching all authors with fanfics from database.");
 
         return await context.Authors
             .Include(a => a.Fanfics)
@@ -27,7 +26,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogDebug("Searching authors by name '{Name}'", name);
+        _logger.LogDebug("Searching authors by name '{Name}'", name);
 
         return await context.Authors
             .AsNoTracking()
@@ -48,7 +47,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
 
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogDebug("Fetching author by AO3 profile name '{Ao3ProfileName}'", ao3ProfileName);
+        _logger.LogDebug("Fetching author by AO3 profile name '{Ao3ProfileName}'", ao3ProfileName);
 
         return await context.Authors
             .AsNoTracking()
@@ -64,7 +63,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogDebug("Fetching author by id {AuthorId}", id);
+        _logger.LogDebug("Fetching author by id {AuthorId}", id);
 
         return await context.Authors
             .AsNoTracking()
@@ -76,7 +75,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogDebug("Fetching author by discord id {DiscordId}", discordId);
+        _logger.LogDebug("Fetching author by discord id {DiscordId}", discordId);
 
         return await context.Authors
             .AsNoTracking()
@@ -88,7 +87,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogDebug("Checking existence of discord id {DiscordId}", discordId);
+        _logger.LogDebug("Checking existence of discord id {DiscordId}", discordId);
 
         return await context.Authors
             .AsNoTracking()
@@ -99,7 +98,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogInformation("Updating author {AuthorId}", author.AuthorId);
+        _logger.LogInformation("Updating author {AuthorId}", author.AuthorId);
 
         context.Authors.Attach(author);
         context.Entry(author).State = EntityState.Modified;
@@ -112,13 +111,13 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogInformation("Updating author description for id {AuthorId}", authorId);
+        _logger.LogInformation("Updating author description for id {AuthorId}", authorId);
 
         Author? author = await context.Authors.FirstOrDefaultAsync(a => a.AuthorId == authorId);
 
         if (author is null)
         {
-            _log.LogWarning("Author with id {AuthorId} not found when updating description", authorId);
+            _logger.LogWarning("Author with id {AuthorId} not found when updating description", authorId);
             return false;
         }
 
@@ -133,13 +132,13 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogInformation("Updating author description for discord id {DiscordId}", discordId);
+        _logger.LogInformation("Updating author description for discord id {DiscordId}", discordId);
 
         Author? author = await context.Authors.FirstOrDefaultAsync(a => a.DiscordId == discordId);
 
         if (author is null)
         {
-            _log.LogWarning("Author with discord id {DiscordId} not found when updating description", discordId);
+            _logger.LogWarning("Author with discord id {DiscordId} not found when updating description", discordId);
             return false;
         }
 
@@ -154,13 +153,13 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogInformation("Updating author description for author entity {AuthorId}", author.AuthorId);
+        _logger.LogInformation("Updating author description for author entity {AuthorId}", author.AuthorId);
 
         Author? dbAuthor = await context.Authors.FirstOrDefaultAsync(a => a.AuthorId == author.AuthorId);
 
         if (dbAuthor is null)
         {
-            _log.LogWarning("Author entity {AuthorId} not found when updating description", author.AuthorId);
+            _logger.LogWarning("Author entity {AuthorId} not found when updating description", author.AuthorId);
             return false;
         }
 
@@ -179,7 +178,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
     {
         await using BotDbContext context = await _dbContextFactory.CreateDbContextAsync();
 
-        _log.LogInformation("Updating discord username for author {AuthorId} to {DiscordUsername} (DiscordId: {DiscordId})", authorId, discordUsername, discordId);
+        _logger.LogInformation("Updating discord username for author {AuthorId} to {DiscordUsername} (DiscordId: {DiscordId})", authorId, discordUsername, discordId);
 
         if (removeDiscordIdBeforeReapply)
         {
@@ -201,7 +200,7 @@ public class AuthorRepository(IDbContextFactory<BotDbContext> dbContextFactory, 
 
         if (author is null)
         {
-            _log.LogWarning("Author with id {AuthorId} not found when updating discord username", authorId);
+            _logger.LogWarning("Author with id {AuthorId} not found when updating discord username", authorId);
             return false;
         }
 

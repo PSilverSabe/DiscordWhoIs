@@ -11,5 +11,6 @@ public interface IFanficRepository : IRepository<Fanfic>
     Task<Fanfic?> GetByIdAsync(int id);
 
     Task<bool> ImportFromJsonAsync(string jsonFileName);
+
     Task<Fanfic?> GetByLinkAsync(string normalisedLink);
 }

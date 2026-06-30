@@ -9,7 +9,7 @@ namespace DiscordWhoIs.Worker.Commands.EmbedPoster;
 
 public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractionContext>
 {
-    [SlashCommand("enable", "Enable or disable the AO3 embed poster")]
+    [SlashCommand("enable", "Enable or disable the AO3 embed poster for this server")]
     public async Task SetEnabledAsync(
         [Summary("Enabled", "Whether the embed poster should be active")]
         bool enabled)
@@ -19,11 +19,18 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
             var statusLines = new List<string>();
             await DeferAsync(ephemeral: true);
 
-            await _configRepository.SetEnabledAsync(enabled);
+            ulong serverId = GetServerId();
+
+            // Ensure server configuration exists
+            await _configRepository.GetOrCreateServerConfigAsync(serverId);
+
+            // Update enabled state
+            await _configRepository.UpdateServerEnabledAsync(serverId, enabled);
+            _fanficEmbedResponderService.InvalidateServerConfigCache(serverId);
 
             await InteractionResponseHelper.UpdateOriginalResponseAsync(
                 Context.Interaction, statusLines,
-                enabled ? "✅ Embed poster **enabled**." : "⛔ Embed poster **disabled**.",
+                enabled ? "✅ Embed poster **enabled** for this server." : "⛔ Embed poster **disabled** for this server.",
                 _logger);
         }
         catch (Exception ex)

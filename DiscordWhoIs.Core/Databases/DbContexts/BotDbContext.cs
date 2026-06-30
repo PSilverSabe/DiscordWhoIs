@@ -17,21 +17,36 @@ public class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(op
 
     public DbSet<EmbedPosterConfiguration> EmbedPosterConfiguration { get; set; } = null!;
 
+    public DbSet<Server> Servers { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // EmbedPosterConfiguration configuration
+        // Server configuration
         modelBuilder.Entity<EmbedPosterConfiguration>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasData(new EmbedPosterConfiguration
-            {
-                Id = 1,
-                Enabled = false,
-                ChannelId = null,
-                DeduplicationWindowMinutes = 10
-            });
+
+            entity.Property(e => e.ServerId)
+                .IsRequired(); // ServerId should not be null
+
+            entity.Property(e => e.Enabled)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.DeduplicationWindowMinutes)
+                .HasDefaultValue(10);
+
+            entity.HasOne(e => e.Server)
+                .WithMany(s => s.EmbedPosterConfigurations)
+                .HasForeignKey(e => e.ServerId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unique constraint: one server-level config per server (ChannelId = null)
+            // and one per channel per server
+            entity.HasIndex(e => new { e.ServerId, e.ChannelId })
+                .IsUnique();
         });
 
         // Alias configuration
