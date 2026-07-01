@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using DiscordWhoIs.Core.Databases.DbModels;
 using DiscordWhoIs.Core.Databases.Interfaces;
-using DiscordWhoIs.Worker.Extensions;
 using DiscordWhoIs.Worker.Helpers;
 using DiscordWhoIs.Worker.Utilities;
 using Microsoft.Extensions.Caching.Memory;
@@ -32,7 +30,7 @@ public sealed class FanficEmbedResponderService(
     private readonly IMemoryCache _cache = cache;
     private readonly ILogger<FanficEmbedResponderService> _logger = logger;
     private static readonly TimeSpan s_configCacheDuration = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan s_invalidConfigCacheDuration = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan s_invalidConfigCacheDuration = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Handles incoming messages and posts embeds for detected AO3 links.
@@ -150,34 +148,21 @@ public sealed class FanficEmbedResponderService(
     }
 
     /// <summary>
-    /// Invalidates the cache for a specific server's configuration.
+    /// Invalidates the cache for a specific server AND channel configuration.
     /// </summary>
-    public void InvalidateServerConfigCache(ulong serverId)
+    public void InvalidateChannelConfigCache(ulong serverId, ulong channelId)
     {
         try
         {
-            string cacheKeyPattern = $"embedposter:config:{serverId}:";
-
-            var keysToRemove = _cache.GetCacheKeys()
-                .Where(k => k.StartsWith(cacheKeyPattern))
-                .ToList();
-
-            foreach (string? key in keysToRemove)
-            {
-                _cache.Remove(key);
-                _logger.LogDebug("Invalidated cache for key {CacheKey}", key);
-            }
-
-            if (keysToRemove.Count > 0)
-            {
-                _logger.LogInformation(
-                    "Invalidated {Count} cache entries for server {DiscordServerId}",
-                    keysToRemove.Count, serverId);
-            }
+            string cacheKey = $"embedposter:config:{serverId}:{channelId}";
+            _cache.Remove(cacheKey);
+            _logger.LogInformation(
+                "Invalidated cache for server {DiscordServerId} channel {ChannelId}",
+                serverId, channelId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error invalidating server config cache for server {DiscordServerId}", serverId);
+            _logger.LogError(ex, "Error invalidating channel config cache");
         }
     }
 

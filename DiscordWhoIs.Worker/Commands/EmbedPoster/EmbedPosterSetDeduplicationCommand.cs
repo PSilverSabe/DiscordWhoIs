@@ -36,7 +36,7 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
 
             if (success)
             {
-                _fanficEmbedResponderService.InvalidateServerConfigCache(serverId);
+                _fanficEmbedResponderService.InvalidateChannelConfigCache(serverId, channel.Id);
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(
                     Context.Interaction, statusLines,
                     $"✅ Deduplication window for {channel.Mention} set to **{deduplicationWindowMinutes} minute(s)**.",

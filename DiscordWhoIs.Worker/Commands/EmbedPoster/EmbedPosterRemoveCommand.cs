@@ -26,7 +26,7 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
 
             // Get or create server
             Server? server = await _serverRepository.GetOrCreateServerAsync(serverId);
-            if (server?.Id <= 0)
+            if (server?.Id <= 0 || server is null)
             {
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(
                     Context.Interaction, statusLines,
@@ -40,7 +40,8 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
 
             if (success)
             {
-                _fanficEmbedResponderService.InvalidateServerConfigCache(serverId);
+                _fanficEmbedResponderService.InvalidateChannelConfigCache(serverId, channelId);
+
                 await InteractionResponseHelper.UpdateOriginalResponseAsync(
                     Context.Interaction, statusLines,
                     $"✅ Configuration removed for <#{channelId}>.",

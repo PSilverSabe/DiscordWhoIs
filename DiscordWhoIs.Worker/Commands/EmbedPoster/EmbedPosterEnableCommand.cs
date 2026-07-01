@@ -45,7 +45,7 @@ public partial class EmbedPosterCommand : InteractionModuleBase<SocketInteractio
 
             if (success)
             {
-                _fanficEmbedResponderService.InvalidateServerConfigCache(serverId);
+                _fanficEmbedResponderService.InvalidateChannelConfigCache(serverId, channelId);
 
                 string status = enabled ? "✅ **enabled**" : "⛔ **disabled**";
                 string channelMention = $"<#{channelId}>";
