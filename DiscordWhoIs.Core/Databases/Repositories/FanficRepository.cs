@@ -376,6 +376,9 @@ public partial class FanficRepository(IDbContextFactory<BotDbContext> dbContextF
         target.KudosCount = source.KudosCount;
         target.BookmarksCount = source.BookmarksCount;
         target.ChapterCount = source.ChapterCount;
+        target.Rating = source.Rating;
+        target.Warnings = source.Warnings;
+        target.Category = source.Category;
         target.FicLastUpdated = source.FicLastUpdated;
         target.DateUpdated = DateTime.UtcNow;
     }
